@@ -5,8 +5,71 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>高通PMIC OCP检查工具</title>
 <style>
-  /* 样式与之前相同，为节约篇幅此处省略，请使用您原有的样式 */
-  /* 注意：样式无需修改，但我们可以增加提示文字 */
+  /* ================= 全局样式 ================= */
+  :root{ --accent:#2D5F8A; --accent-dark:#1C3A5E; --red:#D93025; --red-bg:#FDECEA;
+         --gray:#6B7280; --border:#D9DEE4; }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif; background:#F5F7FA; color:#2E3440; padding:24px 16px;}
+  .container{max-width:1100px; margin:0 auto;}
+  h1{font-size:22px; color:var(--accent-dark); margin-bottom:6px;}
+  .sub{color:var(--gray); font-size:13px; margin-bottom:20px; line-height:1.7;}
+  .sub strong{color:var(--red);}
+
+  #dropZone{border:2px dashed var(--accent); border-radius:10px; background:#fff; padding:46px 20px;
+            text-align:center; cursor:pointer; transition:all .15s;}
+  #dropZone.dragover{background:#EAF2F9; border-color:var(--accent-dark); box-shadow:0 0 0 4px rgba(45,95,138,.12);}
+  #dropZone .big{font-size:17px; font-weight:600; margin-bottom:8px; color:var(--accent-dark);}
+  #dropZone .small{font-size:13px; color:var(--gray);}
+  #fileInput{display:none;}
+
+  .cards{display:flex; gap:14px; margin:20px 0 6px; flex-wrap:wrap;}
+  .card{flex:1; min-width:170px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 18px;}
+  .card .num{font-size:26px; font-weight:700; color:var(--accent);}
+  .card.hit .num{color:var(--red);}
+  .card .lbl{font-size:12px; color:var(--gray); margin-top:4px;}
+  .dist{margin:10px 0 0; font-size:13px; color:#374151; line-height:1.8;}
+
+  .toolbar{display:flex; gap:10px; align-items:center; margin:18px 0 10px; flex-wrap:wrap;}
+  .btn{border:1px solid var(--accent); background:#fff; color:var(--accent); padding:7px 16px;
+       border-radius:6px; font-size:13px; cursor:pointer; transition:all .15s;}
+  .btn:hover{background:#EAF2F9;}
+  .btn.active{background:var(--accent); color:#fff;}
+  .btn.export{border-color:#59A14F; color:#3D7A34; margin-left:auto;}
+  .btn.export:hover{background:#EEF7EC;}
+
+  .th-wrap{display:flex; align-items:center; gap:6px;}
+  .farrow{cursor:pointer; font-size:10px; padding:2px 5px; border-radius:4px; opacity:.75; user-select:none;}
+  .farrow:hover{background:rgba(255,255,255,.22); opacity:1;}
+  .farrow.active{color:#FFD54F; opacity:1; font-weight:700;}
+  .filter-panel{position:fixed; z-index:999; background:#fff; border:1px solid var(--border);
+                border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.14); min-width:210px; max-width:320px;
+                color:#2E3440; font-weight:400;}
+  .filter-panel .fp-head{display:flex; gap:8px; align-items:center; padding:8px 12px; border-bottom:1px solid #EEF1F4;}
+  .filter-panel .fp-title{font-size:13px; font-weight:600; flex:1; white-space:nowrap;}
+  .filter-panel .fp-btn{border:1px solid var(--border); background:#fff; color:var(--accent); border-radius:5px;
+                        font-size:12px; padding:3px 9px; cursor:pointer;}
+  .filter-panel .fp-btn:hover{background:#EAF2F9;}
+  .filter-panel .fp-list{max-height:260px; overflow:auto; padding:6px 4px;}
+  .filter-panel label.fp-item{display:flex; align-items:center; gap:8px; padding:5px 10px; font-size:13px;
+                              cursor:pointer; border-radius:5px; white-space:nowrap;}
+  .filter-panel label.fp-item:hover{background:#F2F6FA;}
+  .filter-panel .fp-count{color:var(--gray); font-size:12px; margin-left:auto; padding-left:12px;}
+
+  .tablewrap{max-height:62vh; overflow:auto; border-radius:8px; border:1px solid var(--border); background:#fff;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{background:var(--accent); color:#fff; padding:9px 12px; text-align:left; font-weight:600;
+     position:sticky; top:0; z-index:1; white-space:nowrap;}
+  td{padding:7px 12px; border-bottom:1px solid #EEF1F4; white-space:nowrap;}
+  tbody tr:nth-child(even) td{background:#F8FAFC;}
+  tbody tr.hit td{background:var(--red-bg); color:var(--red); font-weight:600;}
+  .b5{color:var(--red); font-weight:700; text-decoration:underline;}
+  tr.hit .b5{color:#8B1A10;}
+
+  #msg{margin-top:14px; font-size:13px; color:var(--gray); line-height:1.7;}
+  #msg.err{color:var(--red); font-weight:600;}
+  .footer{margin-top:26px; font-size:12px; color:#9AA3AF; text-align:center;}
+  code{background:#EEF1F4; padding:1px 5px; border-radius:4px; font-size:12px;}
+  #log{background:#1e1e1e; color:#d4d4d4; padding:10px; border-radius:6px; max-height:200px; overflow:auto; font-family:monospace; font-size:12px; white-space:pre-wrap; margin-top:20px; display:block;}
 </style>
 </head>
 <body>
@@ -14,20 +77,44 @@
   <h1>高通PMIC OCP检查工具</h1>
   <div class="sub">
     功能：筛选 <code>Reg. Addr.(h)</code> 列中 <b>0X**08</b> 寄存器，判断 <b>Bit(5)</b> 是否为 1。
-    <br><strong style="color:#D93025;">请使用拖拽方式上传 CSV 文件（点击选择可能因浏览器安全限制不可用）</strong>
+    <br><strong>⚠️ 由于浏览器安全限制，点击选择功能不可用，请使用拖拽方式上传 CSV 文件。</strong>
   </div>
 
-  <!-- 拖拽区域 -->
   <div id="dropZone">
     <div class="big">将 SPMI.CSV 文件拖拽到此处</div>
-    <div class="small">（仅支持拖拽，请将文件从文件夹中拖入此区域）</div>
+    <div class="small">（请将文件从文件夹中拖入此区域）</div>
   </div>
   <input type="file" id="fileInput" accept=".csv,text/csv" style="display:none;">
 
-  <!-- 结果展示区域（与之前相同） -->
   <div id="result" style="display:none">
-    <!-- 统计卡片、表格等结构不变 -->
-    ...
+    <div class="cards">
+      <div class="card"><div class="num" id="numTotal">0</div><div class="lbl">数据总行数</div></div>
+      <div class="card"><div class="num" id="numAddr08">0</div><div class="lbl">符合 0X**08 格式的地址行</div></div>
+      <div class="card hit"><div class="num" id="numHit">0</div><div class="lbl">Bit(5) = 1 命中行</div></div>
+    </div>
+    <div class="dist" id="dist"></div>
+
+    <div class="toolbar">
+      <button class="btn active" id="tabHits">仅看命中行</button>
+      <button class="btn" id="tabAll">全部 **08 地址行</button>
+      <button class="btn export" id="btnExport">导出命中清单 (CSV)</button>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:90px">行号</th>
+            <th style="width:150px"><div class="th-wrap">Addr.(h)<span class="farrow" data-col="addr" title="下拉筛选（多选）">&#9660;</span></div></th>
+            <th style="width:190px"><div class="th-wrap">Reg. Addr.(h)<span class="farrow" data-col="reg" title="下拉筛选（多选）">&#9660;</span></div></th>
+            <th style="width:170px"><div class="th-wrap">Data(h)<span class="farrow" data-col="data" title="下拉筛选（多选）">&#9660;</span></div></th>
+            <th>低字节二进制（b7~b0）</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div id="msg"></div>
   </div>
 
   <div class="footer">纯前端处理 · 数据不离开本机 · 关闭页面后自动清空</div>
@@ -35,9 +122,20 @@
 </div>
 
 <script>
-(function(){
-  // 安全日志函数（与之前相同）
-  function log(msg, type) { ... }
+(function() {
+  // 安全日志函数
+  function log(msg, type) {
+    var prefix = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '✅';
+    var full = '[' + new Date().toLocaleTimeString() + '] ' + prefix + ' ' + msg;
+    console.log(full);
+    try {
+      var logEl = document.getElementById('log');
+      if (logEl) {
+        logEl.textContent += full + '\n';
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    } catch(e) { /* ignore */ }
+  }
 
   document.addEventListener('DOMContentLoaded', function() {
     log('DOM 加载完成，开始初始化...');
@@ -52,8 +150,289 @@
     var btnExport = document.getElementById('btnExport');
     var arrows = document.querySelectorAll('.farrow');
 
-    // ... 所有辅助函数（parseCSV, cleanCell, showMsg, binHtml, render 等）与之前完全相同 ...
-    // 为节约篇幅，此处省略，您可以直接从之前的完整代码中复制这些函数。
+    if (!dropZone || !fileInput || !resultBox || !tbody || !msgBox) {
+      log('关键元素缺失，无法启动', 'error');
+      return;
+    }
+    log('元素获取成功');
+
+    // ---------- 全局数据 ----------
+    var all08 = [];
+    var hits = [];
+    var curFile = '';
+    var curTab = 'hits';
+    var filters = { addr:null, reg:null, data:null };
+    var panel = null;
+    var panelCol = null;
+    var COL_NAMES = { addr:'Addr.(h)', reg:'Reg. Addr.(h)', data:'Data(h)' };
+
+    // ---------- CSV 解析 ----------
+    function parseCSV(text) {
+      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+      var rows = [], row = [], field = '', inQ = false;
+      for (var i = 0; i < text.length; i++) {
+        var c = text[i];
+        if (inQ) {
+          if (c === '"') {
+            if (text[i+1] === '"') { field += '"'; i++; }
+            else inQ = false;
+          } else field += c;
+        } else {
+          if (c === '"') inQ = true;
+          else if (c === ',') { row.push(field); field = ''; }
+          else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+          else if (c !== '\r') field += c;
+        }
+      }
+      if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+      return rows;
+    }
+
+    function cleanCell(v) {
+      if (v === null || v === undefined) return '';
+      var s = String(v).trim();
+      if (s.charAt(0) === '=') s = s.slice(1).trim();
+      if (s.length >= 2 && s.charAt(0) === '"' && s.charAt(s.length-1) === '"') {
+        s = s.slice(1, -1);
+      } else {
+        s = s.replace(/"/g, '');
+      }
+      return s.trim();
+    }
+
+    function showMsg(t, isErr) {
+      msgBox.textContent = t;
+      msgBox.className = isErr ? 'err' : '';
+      log(t, isErr ? 'error' : 'info');
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function binHtml(hexStr) {
+      var h = hexStr.length % 2 ? '0' + hexStr : hexStr;
+      var lastByte = h.slice(-2);
+      var n = parseInt(lastByte, 16);
+      var bin = ('00000000' + n.toString(2)).slice(-8);
+      var out = '';
+      for (var i = 0; i < 8; i++) {
+        if (i === 2) out += '<span class="b5">' + bin[i] + '</span>';
+        else out += bin[i];
+      }
+      return '<code>' + out + '</code>';
+    }
+
+    function currentList() { return (curTab === 'all') ? all08 : hits; }
+
+    function fval(r, col) {
+      var v = String(r[col]);
+      return v === '' ? '(空)' : v;
+    }
+
+    function matchFilters(r) {
+      if (filters.addr && !filters.addr.has(fval(r,'addr'))) return false;
+      if (filters.reg  && !filters.reg.has(fval(r,'reg')))  return false;
+      if (filters.data && !filters.data.has(fval(r,'data'))) return false;
+      return true;
+    }
+
+    function render(tab) {
+      curTab = tab;
+      var list = (tab === 'all') ? all08 : hits;
+      var shown = list.filter(matchFilters);
+      var html = '';
+      for (var i = 0; i < shown.length; i++) {
+        var r = shown[i];
+        html += '<tr' + (r.bit5 ? ' class="hit"' : '') + '>'
+              + '<td>' + r.excelRow + '</td>'
+              + '<td>' + r.addr + '</td>'
+              + '<td>' + r.reg + '</td>'
+              + '<td>' + r.data + '</td>'
+              + '<td>' + binHtml(r.hexStr) + '</td>'
+              + '</tr>';
+      }
+      tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:#6B7280;padding:20px">无数据</td></tr>';
+      tabHits.className = 'btn' + (tab !== 'all' ? ' active' : '');
+      tabAll.className  = 'btn' + (tab === 'all' ? ' active' : '');
+      var viewName = (tab === 'all') ? '全部 **08 地址行' : 'Bit(5)=1 命中行';
+      var filterOn = !!(filters.addr || filters.reg || filters.data);
+      showMsg('当前显示：' + viewName + ' ' + shown.length + (filterOn ? (' / ' + list.length) : '') + ' 条'
+            + (filterOn ? '（已应用表头下拉筛选，支持多选；点击表头 ▼ 可修改）' : '')
+            + '。行号为 CSV/Excel 中的实际行号。', false);
+    }
+
+    // ---------- 表头下拉筛选 ----------
+    function updateArrowState() {
+      arrows.forEach(function(a) {
+        a.classList.toggle('active', !!filters[a.dataset.col]);
+      });
+    }
+
+    function closePanel() {
+      if (panel) { panel.remove(); panel = null; panelCol = null; }
+    }
+
+    function openPanel(col, anchor) {
+      closePanel();
+      var list = currentList();
+      var cnt = {};
+      list.forEach(function(r) {
+        var v = fval(r, col);
+        cnt[v] = (cnt[v] || 0) + 1;
+      });
+      var keys = Object.keys(cnt).sort(function(a,b) { return cnt[b]-cnt[a] || (a<b?-1:1); });
+      var sel = filters[col];
+
+      panel = document.createElement('div');
+      panel.className = 'filter-panel';
+      var head = '<div class="fp-head"><span class="fp-title">' + COL_NAMES[col] + ' 筛选</span>'
+               + '<button class="fp-btn" data-act="all">全选</button>'
+               + '<button class="fp-btn" data-act="none">清空</button></div>';
+      var items = '';
+      keys.forEach(function(k) {
+        var checked = (!sel || sel.has(k)) ? ' checked' : '';
+        items += '<label class="fp-item"><input type="checkbox" value="' + escHtml(k) + '"' + checked + '>'
+               + '<span>' + escHtml(k) + '</span><span class="fp-count">' + cnt[k] + '</span></label>';
+      });
+      panel.innerHTML = head + '<div class="fp-list">'
+                      + (items || '<div style="padding:10px 12px;color:#6B7280;font-size:13px">无数据</div>')
+                      + '</div>';
+      document.body.appendChild(panel);
+
+      var rect = anchor.getBoundingClientRect();
+      var left = Math.min(rect.left, window.innerWidth - panel.offsetWidth - 8);
+      panel.style.left = Math.max(8, left) + 'px';
+      panel.style.top  = (rect.bottom + 4) + 'px';
+
+      panel.querySelectorAll('.fp-btn').forEach(function(b) {
+        b.addEventListener('click', function() {
+          panel.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
+            cb.checked = (b.dataset.act === 'all');
+          });
+          applyPanel(col);
+        });
+      });
+      panel.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
+        cb.addEventListener('change', function() { applyPanel(col); });
+      });
+      panelCol = col;
+    }
+
+    function applyPanel(col) {
+      var boxes = panel.querySelectorAll('input[type=checkbox]');
+      var chosen = [];
+      boxes.forEach(function(cb) { if (cb.checked) chosen.push(cb.value); });
+      if (chosen.length === 0 || chosen.length === boxes.length) { filters[col] = null; }
+      else { filters[col] = new Set(chosen); }
+      updateArrowState();
+      render(curTab);
+    }
+
+    arrows.forEach(function(a) {
+      a.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var col = a.dataset.col;
+        if (panel && panelCol === col) { closePanel(); }
+        else { openPanel(col, a); }
+      });
+    });
+    document.addEventListener('mousedown', function(e) {
+      if (panel && !panel.contains(e.target)) closePanel();
+    });
+    var tablewrap = document.querySelector('.tablewrap');
+    if (tablewrap) tablewrap.addEventListener('scroll', closePanel);
+    window.addEventListener('scroll', closePanel);
+    window.addEventListener('resize', closePanel);
+
+    // ---------- 核心业务处理 ----------
+    function processCSV(text, fileName) {
+      log('开始处理 CSV，文件名：' + fileName);
+      try {
+        var rows = parseCSV(text);
+        log('解析行数：' + rows.length);
+
+        var headerIdx = -1, addrCol = -1, regCol = -1, dataCol = -1;
+        for (var r = 0; r < Math.min(rows.length, 20); r++) {
+          var norm = rows[r].map(function(c) { return cleanCell(c).toLowerCase().replace(/\s+/g, ''); });
+          var ai = norm.indexOf('addr.(h)');
+          var ri = norm.indexOf('reg.addr.(h)');
+          var di = norm.indexOf('data(h)');
+          if (ri >= 0 && di >= 0) { headerIdx = r; addrCol = ai; regCol = ri; dataCol = di; break; }
+        }
+        if (headerIdx < 0) {
+          resultBox.style.display = 'none';
+          alert('未在文件中找到 "Reg. Addr.(h)" 与 "Data(h)" 列，请检查 CSV 格式。');
+          log('未找到必要列', 'error');
+          return;
+        }
+        log('表头行索引：' + headerIdx + '，列位置：Addr=' + addrCol + ', Reg=' + regCol + ', Data=' + dataCol);
+
+        all08 = []; hits = [];
+        var totalData = 0, badHex = 0;
+        for (var i = headerIdx + 1; i < rows.length; i++) {
+          var raw = rows[i];
+          var isEmpty = raw.every(function(c) { return cleanCell(c) === ''; });
+          if (isEmpty) continue;
+          totalData++;
+          var addr = (addrCol >= 0) ? cleanCell(raw[addrCol]) : '';
+          var reg  = cleanCell(raw[regCol]);
+          var data = cleanCell(raw[dataCol]);
+          if (!/08$/i.test(reg)) continue;
+          var hexStr = data.replace(/^0x/i, '').replace(/\s+/g, '');
+          var rec = { excelRow: i + 1, addr: addr, reg: reg, data: data, hexStr: hexStr, bit5: false, valid: false };
+          if (/^[0-9a-fA-F]+$/.test(hexStr)) {
+            try {
+              var val = BigInt('0x' + hexStr);
+              rec.bit5 = ((val >> BigInt(5)) & BigInt(1)) === BigInt(1);
+              rec.valid = true;
+            } catch(e) { rec.valid = false; }
+          }
+          if (!rec.valid) { badHex++; all08.push(rec); continue; }
+          all08.push(rec);
+          if (rec.bit5) hits.push(rec);
+        }
+        log('数据总行：' + totalData + '，**08 行：' + all08.length + '，命中行：' + hits.length);
+
+        document.getElementById('numTotal').textContent  = totalData;
+        document.getElementById('numAddr08').textContent = all08.length;
+        document.getElementById('numHit').textContent    = hits.length;
+
+        var addrMap = {}, regMap = {};
+        hits.forEach(function(h) {
+          var ka = (h.addr || '(空)').toUpperCase();
+          var kr = (h.reg  || '(空)').toUpperCase();
+          addrMap[ka] = (addrMap[ka] || 0) + 1;
+          regMap[kr]  = (regMap[kr]  || 0) + 1;
+        });
+        function sortKeys(m) {
+          return Object.keys(m).sort(function(a,b) { return m[b]-m[a] || (a<b?-1:1); });
+        }
+        var distHtml = '文件：' + fileName + '<br>';
+        distHtml += '符合条件（Bit5=1）行的 <b>Addr.(h)</b> 分布：';
+        var ak = sortKeys(addrMap);
+        if (ak.length === 0) distHtml += '无';
+        ak.forEach(function(k) { distHtml += ' <code>' + k + '</code> × ' + addrMap[k] + '　'; });
+        distHtml += '<br>符合条件（Bit5=1）行的 <b>Reg. Addr.(h)</b> 分布：';
+        var rk = sortKeys(regMap);
+        if (rk.length === 0) distHtml += '无';
+        rk.forEach(function(k) { distHtml += ' <code>' + k + '</code> × ' + regMap[k] + '　'; });
+        if (badHex > 0) distHtml += '<br>（另有 ' + badHex + ' 行 Data 无法解析为 Hex，已忽略判定）';
+        document.getElementById('dist').innerHTML = distHtml;
+
+        filters = { addr:null, reg:null, data:null };
+        closePanel();
+        updateArrowState();
+
+        resultBox.style.display = 'block';
+        render('hits');
+        log('处理完成，渲染成功');
+      } catch (err) {
+        log('处理 CSV 时发生异常：' + err.message, 'error');
+        console.error(err.stack);
+        alert('处理文件时出错：' + err.message);
+      }
+    }
 
     // ---------- 文件读取入口 ----------
     function handleFile(file) {
@@ -108,13 +487,10 @@
       };
     }
 
-    // ---------- 核心业务处理 processCSV（与之前完全相同） ----------
-    function processCSV(text, fileName) { ... } // 请复制之前的完整函数
-
     // ---------- 事件绑定 ----------
-    // 点击 dropZone 不再触发 fileInput.click()，而是给出提示
+    // 点击 dropZone 给出提示，不触发文件选择
     dropZone.addEventListener('click', function() {
-      log('点击了 dropZone（但点击选择已被禁用，请使用拖拽）', 'warn');
+      log('点击了 dropZone（点击选择已禁用，请使用拖拽）', 'warn');
       alert('请将 CSV 文件直接拖拽到页面中，点击选择功能因浏览器限制不可用。');
     });
 
@@ -124,7 +500,6 @@
         e.preventDefault();
         e.stopPropagation();
         dropZone.classList.add('dragover');
-        log('拖拽进入/移动');
       });
     });
 
@@ -142,13 +517,11 @@
           } else {
             log('拖入无效或无文件', 'warn');
           }
-        } else {
-          log('拖拽离开');
         }
       });
     });
 
-    // 备选：如果用户双击或意外点击，我们保留 fileInput 但不再主动触发
+    // 备选：保留 change 事件（但不主动触发）
     fileInput.addEventListener('change', function() {
       log('fileInput change 事件（备选）', 'info');
       if (fileInput.files.length > 0) {
@@ -157,11 +530,11 @@
       }
     });
 
-    // 视图切换按钮
+    // 视图切换
     tabHits.addEventListener('click', function() { render('hits'); });
     tabAll.addEventListener('click', function() { render('all'); });
 
-    // 导出按钮（与之前相同）
+    // 导出
     btnExport.addEventListener('click', function() {
       if (hits.length === 0) { alert('当前没有命中行可导出。'); return; }
       var lines = ['\uFEFF行号,Reg. Addr.(h),Data(h),Bit(5)'];
