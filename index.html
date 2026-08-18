@@ -14,11 +14,20 @@
   .sub{color:var(--gray); font-size:13px; margin-bottom:20px; line-height:1.7;}
 
   #dropZone{border:2px dashed var(--accent); border-radius:10px; background:#fff; padding:46px 20px;
-            text-align:center; cursor:pointer; transition:all .15s;}
+            text-align:center; cursor:pointer; transition:all .15s; user-select:none;}
   #dropZone.dragover{background:#EAF2F9; border-color:var(--accent-dark); box-shadow:0 0 0 4px rgba(45,95,138,.12);}
   #dropZone .big{font-size:17px; font-weight:600; margin-bottom:8px; color:var(--accent-dark);}
   #dropZone .small{font-size:13px; color:var(--gray);}
   #fileInput{display:none;}
+
+  .upload-btn {
+    display:inline-block; background:var(--accent); color:#fff;
+    padding:10px 32px; border-radius:6px; cursor:pointer;
+    font-size:15px; border:none; box-shadow:0 2px 8px rgba(45,95,138,0.3);
+    transition:background .15s;
+    margin-top:12px;
+  }
+  .upload-btn:hover{background:var(--accent-dark);}
 
   .cards{display:flex; gap:14px; margin:20px 0 6px; flex-wrap:wrap;}
   .card{flex:1; min-width:170px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 18px;}
@@ -68,7 +77,6 @@
   .footer{margin-top:26px; font-size:12px; color:#9AA3AF; text-align:center;}
   code{background:#EEF1F4; padding:1px 5px; border-radius:4px; font-size:12px;}
 
-  /* 加载遮罩 */
   #loading-overlay {
     display: none;
     position: fixed;
@@ -81,41 +89,12 @@
     flex-direction: column;
     gap: 20px;
   }
-  #loading-overlay .loader-text {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--accent-dark);
-    letter-spacing: 0.5px;
-  }
-  .progress-bar {
-    width: 320px;
-    max-width: 80vw;
-    height: 6px;
-    background: #e0e7ef;
-    border-radius: 3px;
-    overflow: hidden;
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);
-  }
-  .progress-bar .bar {
-    width: 40%;
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), #6ea8fe);
-    border-radius: 3px;
-    animation: loading-slide 1.2s ease-in-out infinite;
-  }
-  @keyframes loading-slide {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(350%); }
-  }
+  #loading-overlay .loader-text { font-size:18px; font-weight:600; color:var(--accent-dark); }
+  .progress-bar { width:320px; max-width:80vw; height:6px; background:#e0e7ef; border-radius:3px; overflow:hidden; }
+  .progress-bar .bar { width:40%; height:100%; background:linear-gradient(90deg, var(--accent), #6ea8fe); border-radius:3px; animation:loading-slide 1.2s ease-in-out infinite; }
+  @keyframes loading-slide { 0%{transform:translateX(-100%)} 100%{transform:translateX(350%)} }
 
-  /* 状态提示区 */
-  #status-msg {
-    margin: 12px 0 0;
-    padding: 10px 16px;
-    border-radius: 6px;
-    font-size: 14px;
-    display: none;
-  }
+  #status-msg { margin:12px 0 0; padding:10px 16px; border-radius:6px; font-size:14px; display:none; }
   #status-msg.info { background:#EFF6FF; border:1px solid #93C5FD; color:#1E40AF; }
   #status-msg.error { background:#FEF2F2; border:1px solid #FCA5A5; color:#991B1B; }
   #status-msg.success { background:#F0FDF4; border:1px solid #86EFAC; color:#166534; }
@@ -126,11 +105,18 @@
   <h1>高通PMIC OCP检查工具</h1>
   <div class="sub">功能：筛选 <code>Reg. Addr.(h)</code> 列中 <b>0X**08</b> 寄存器，判断 <b>Bit(5)</b> 是否为 1。</div>
 
+  <!-- 虚线拖拽区 -->
   <div id="dropZone">
     <div class="big">将 SPMI.CSV 文件拖拽到此处</div>
     <div class="small">或点击此处选择文件（支持 .csv 文件格式）</div>
   </div>
   <input type="file" id="fileInput" accept=".csv,text/csv">
+
+  <!-- 显式按钮（备用） -->
+  <div style="text-align:center;">
+    <label for="fileInputDirect" class="upload-btn">📂 点击选择 CSV 文件</label>
+    <input type="file" id="fileInputDirect" accept=".csv,text/csv" style="display:none;">
+  </div>
 
   <div id="status-msg"></div>
 
@@ -176,6 +162,7 @@
   /* ---------- DOM 引用 ---------- */
   var dropZone  = document.getElementById('dropZone');
   var fileInput = document.getElementById('fileInput');
+  var fileInputDirect = document.getElementById('fileInputDirect');
   var resultBox = document.getElementById('result');
   var tbody     = document.getElementById('tbody');
   var msgBox    = document.getElementById('msg');
@@ -472,6 +459,7 @@
     statusMsg.textContent = text;
     statusMsg.className = type || '';
     statusMsg.style.display = 'block';
+    console.log('[Status]', text);
   }
 
   /* ---------- 文件处理 ---------- */
@@ -500,45 +488,55 @@
   }
 
   /* ---------- 事件绑定 ---------- */
-  // 点击选择
-  dropZone.addEventListener('click', function(){ fileInput.click(); });
-  fileInput.addEventListener('change', function(){ 
-    if (fileInput.files.length > 0) handleFile(fileInput.files[0]); 
-    fileInput.value = ''; 
+  // 虚线框点击 → 触发隐藏 input
+  dropZone.addEventListener('click', function(e){
+    console.log('🖱️ dropZone 被点击');
+    fileInput.click();
   });
 
-  // 拖拽事件（完整修复）
+  // 隐藏 input 的 change
+  fileInput.addEventListener('change', function(){
+    console.log('📤 fileInput change 事件触发');
+    if (fileInput.files.length > 0) {
+      handleFile(fileInput.files[0]);
+    }
+    fileInput.value = ''; // 清空以便重复选择同一文件
+  });
+
+  // 显式按钮的 change
+  fileInputDirect.addEventListener('change', function(){
+    console.log('📤 fileInputDirect change 事件触发');
+    if (fileInputDirect.files.length > 0) {
+      handleFile(fileInputDirect.files[0]);
+    }
+    fileInputDirect.value = '';
+  });
+
+  // 拖拽事件
   dropZone.addEventListener('dragenter', function(e){
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dropZone.classList.add('dragover');
-    console.log('dragenter 触发');
+    console.log('dragenter');
   });
   dropZone.addEventListener('dragover', function(e){
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     e.dataTransfer.dropEffect = 'copy';
     dropZone.classList.add('dragover');
-    console.log('dragover 触发');
+    console.log('dragover');
   });
   dropZone.addEventListener('dragleave', function(e){
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dropZone.classList.remove('dragover');
-    console.log('dragleave 触发');
+    console.log('dragleave');
   });
   dropZone.addEventListener('drop', function(e){
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dropZone.classList.remove('dragover');
+    console.log('🟢 drop 触发');
     var files = e.dataTransfer.files;
-    console.log('拖拽文件数:', files.length);
     if (files.length > 0) {
-      var f = files[0];
-      console.log('拖拽文件名:', f.name);
-      handleFile(f);
+      handleFile(files[0]);
     } else {
-      console.warn('没有文件被拖入');
       setStatus('没有检测到文件，请重新拖拽。', 'error');
     }
   });
@@ -563,7 +561,7 @@
   });
 
   /* ---------- 启动提示 ---------- */
-  setStatus('请拖入 CSV 文件，或点击上方区域选择。', 'info');
+  setStatus('请拖入 CSV 文件，或点击下方按钮选择。', 'info');
 })();
 </script>
 </body>
