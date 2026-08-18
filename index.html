@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>高通PMIC OCP检查工具</title>
 <style>
-  /* ================= 全局样式 ================= */
+  /* ================= 全局样式（与原版一致） ================= */
   :root{ --accent:#2D5F8A; --accent-dark:#1C3A5E; --red:#D93025; --red-bg:#FDECEA;
          --gray:#6B7280; --border:#D9DEE4; }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -15,18 +15,12 @@
   .sub{color:var(--gray); font-size:13px; margin-bottom:20px; line-height:1.7;}
   .sub strong{color:var(--red);}
 
-  #dropZone{border:2px dashed var(--accent); border-radius:10px; background:#fff; padding:30px 20px;
+  #dropZone{border:2px dashed var(--accent); border-radius:10px; background:#fff; padding:46px 20px;
             text-align:center; transition:all .15s; margin-bottom:16px;}
-  #dropZone.dragover{background:#EAF2F9; border-color:var(--accent-dark);}
+  #dropZone.dragover{background:#EAF2F9; border-color:var(--accent-dark); box-shadow:0 0 0 4px rgba(45,95,138,.12);}
   #dropZone .big{font-size:17px; font-weight:600; margin-bottom:8px; color:var(--accent-dark);}
   #dropZone .small{font-size:13px; color:var(--gray);}
   #fileInput{display:none;}
-
-  /* 新增按钮样式 */
-  .btn-primary{background:var(--accent); color:#fff; border:none; padding:10px 28px; border-radius:8px;
-               font-size:16px; cursor:pointer; transition:background .2s; display:inline-block;}
-  .btn-primary:hover{background:var(--accent-dark);}
-  .btn-primary:disabled{opacity:0.6; cursor:not-allowed;}
 
   .cards{display:flex; gap:14px; margin:20px 0 6px; flex-wrap:wrap;}
   .card{flex:1; min-width:170px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 18px;}
@@ -83,17 +77,12 @@
   <h1>高通PMIC OCP检查工具</h1>
   <div class="sub">
     功能：筛选 <code>Reg. Addr.(h)</code> 列中 <b>0X**08</b> 寄存器，判断 <b>Bit(5)</b> 是否为 1。
-    <br><strong>⚠️ 请点击下方“选择文件”按钮，或拖拽 CSV 文件到页面中。</strong>
-  </div>
-
-  <div style="text-align:center; margin-bottom:16px;">
-    <button class="btn-primary" id="pickBtn">📂 选择 CSV 文件</button>
-    <span style="font-size:13px; color:var(--gray); margin-left:12px;">（支持 Chrome/Edge，若点击无反应请使用拖拽）</span>
+    <br><strong>将 CSV 文件拖拽到页面任意位置，或粘贴（Ctrl+V）文件，均可自动解析。</strong>
   </div>
 
   <div id="dropZone">
-    <div class="big">或将 SPMI.CSV 文件拖拽到此处</div>
-    <div class="small">（拖拽方式作为备选，推荐使用按钮）</div>
+    <div class="big">拖拽 CSV 文件到此处或页面任意位置</div>
+    <div class="small">也支持从文件夹复制文件后粘贴（Ctrl+V）</div>
   </div>
   <input type="file" id="fileInput" accept=".csv,text/csv" style="display:none;">
 
@@ -116,9 +105,9 @@
         <thead>
           <tr>
             <th style="width:90px">行号</th>
-            <th style="width:150px"><div class="th-wrap">Addr.(h)<span class="farrow" data-col="addr" title="下拉筛选（多选）">&#9660;</span></div></th>
-            <th style="width:190px"><div class="th-wrap">Reg. Addr.(h)<span class="farrow" data-col="reg" title="下拉筛选（多选）">&#9660;</span></div></th>
-            <th style="width:170px"><div class="th-wrap">Data(h)<span class="farrow" data-col="data" title="下拉筛选（多选）">&#9660;</span></div></th>
+            <th style="width:150px"><div class="th-wrap">Addr.(h)<span class="farrow" data-col="addr" title="下拉筛选（多选）">▼</span></div></th>
+            <th style="width:190px"><div class="th-wrap">Reg. Addr.(h)<span class="farrow" data-col="reg" title="下拉筛选（多选）">▼</span></div></th>
+            <th style="width:170px"><div class="th-wrap">Data(h)<span class="farrow" data-col="data" title="下拉筛选（多选）">▼</span></div></th>
             <th>低字节二进制（b7~b0）</th>
           </tr>
         </thead>
@@ -134,7 +123,7 @@
 
 <script>
 (function() {
-  // 日志
+  // ================= 日志函数 =================
   function log(msg, type) {
     var prefix = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '✅';
     var full = '[' + new Date().toLocaleTimeString() + '] ' + prefix + ' ' + msg;
@@ -145,9 +134,10 @@
         logEl.textContent += full + '\n';
         logEl.scrollTop = logEl.scrollHeight;
       }
-    } catch(e) { /* ignore */ }
+    } catch(e) {}
   }
 
+  // ================= 等待 DOM 加载 =================
   document.addEventListener('DOMContentLoaded', function() {
     log('DOM 加载完成，开始初始化...');
 
@@ -160,15 +150,14 @@
     var tabAll = document.getElementById('tabAll');
     var btnExport = document.getElementById('btnExport');
     var arrows = document.querySelectorAll('.farrow');
-    var pickBtn = document.getElementById('pickBtn');
 
-    if (!dropZone || !fileInput || !resultBox || !tbody || !msgBox || !pickBtn) {
+    if (!dropZone || !fileInput || !resultBox || !tbody || !msgBox) {
       log('关键元素缺失，无法启动', 'error');
       return;
     }
     log('元素获取成功');
 
-    // ---------- 全局数据 ----------
+    // ================= 全局数据 =================
     var all08 = [];
     var hits = [];
     var curFile = '';
@@ -178,7 +167,7 @@
     var panelCol = null;
     var COL_NAMES = { addr:'Addr.(h)', reg:'Reg. Addr.(h)', data:'Data(h)' };
 
-    // ---------- CSV 解析 ----------
+    // ================= CSV 解析（与原版相同） =================
     function parseCSV(text) {
       if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
       var rows = [], row = [], field = '', inQ = false;
@@ -274,17 +263,15 @@
             + '。行号为 CSV/Excel 中的实际行号。', false);
     }
 
-    // ---------- 表头下拉筛选 ----------
+    // ================= 表头筛选（与原版相同） =================
     function updateArrowState() {
       arrows.forEach(function(a) {
         a.classList.toggle('active', !!filters[a.dataset.col]);
       });
     }
-
     function closePanel() {
       if (panel) { panel.remove(); panel = null; panelCol = null; }
     }
-
     function openPanel(col, anchor) {
       closePanel();
       var list = currentList();
@@ -295,7 +282,6 @@
       });
       var keys = Object.keys(cnt).sort(function(a,b) { return cnt[b]-cnt[a] || (a<b?-1:1); });
       var sel = filters[col];
-
       panel = document.createElement('div');
       panel.className = 'filter-panel';
       var head = '<div class="fp-head"><span class="fp-title">' + COL_NAMES[col] + ' 筛选</span>'
@@ -311,12 +297,10 @@
                       + (items || '<div style="padding:10px 12px;color:#6B7280;font-size:13px">无数据</div>')
                       + '</div>';
       document.body.appendChild(panel);
-
       var rect = anchor.getBoundingClientRect();
       var left = Math.min(rect.left, window.innerWidth - panel.offsetWidth - 8);
       panel.style.left = Math.max(8, left) + 'px';
       panel.style.top  = (rect.bottom + 4) + 'px';
-
       panel.querySelectorAll('.fp-btn').forEach(function(b) {
         b.addEventListener('click', function() {
           panel.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
@@ -330,7 +314,6 @@
       });
       panelCol = col;
     }
-
     function applyPanel(col) {
       var boxes = panel.querySelectorAll('input[type=checkbox]');
       var chosen = [];
@@ -340,7 +323,6 @@
       updateArrowState();
       render(curTab);
     }
-
     arrows.forEach(function(a) {
       a.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -357,13 +339,12 @@
     window.addEventListener('scroll', closePanel);
     window.addEventListener('resize', closePanel);
 
-    // ---------- 核心业务处理 ----------
+    // ================= 核心业务处理（与原版相同） =================
     function processCSV(text, fileName) {
       log('开始处理 CSV，文件名：' + fileName);
       try {
         var rows = parseCSV(text);
         log('解析行数：' + rows.length);
-
         var headerIdx = -1, addrCol = -1, regCol = -1, dataCol = -1;
         for (var r = 0; r < Math.min(rows.length, 20); r++) {
           var norm = rows[r].map(function(c) { return cleanCell(c).toLowerCase().replace(/\s+/g, ''); });
@@ -379,7 +360,6 @@
           return;
         }
         log('表头行索引：' + headerIdx + '，列位置：Addr=' + addrCol + ', Reg=' + regCol + ', Data=' + dataCol);
-
         all08 = []; hits = [];
         var totalData = 0, badHex = 0;
         for (var i = headerIdx + 1; i < rows.length; i++) {
@@ -405,11 +385,9 @@
           if (rec.bit5) hits.push(rec);
         }
         log('数据总行：' + totalData + '，**08 行：' + all08.length + '，命中行：' + hits.length);
-
         document.getElementById('numTotal').textContent  = totalData;
         document.getElementById('numAddr08').textContent = all08.length;
         document.getElementById('numHit').textContent    = hits.length;
-
         var addrMap = {}, regMap = {};
         hits.forEach(function(h) {
           var ka = (h.addr || '(空)').toUpperCase();
@@ -431,11 +409,9 @@
         rk.forEach(function(k) { distHtml += ' <code>' + k + '</code> × ' + regMap[k] + '　'; });
         if (badHex > 0) distHtml += '<br>（另有 ' + badHex + ' 行 Data 无法解析为 Hex，已忽略判定）';
         document.getElementById('dist').innerHTML = distHtml;
-
         filters = { addr:null, reg:null, data:null };
         closePanel();
         updateArrowState();
-
         resultBox.style.display = 'block';
         render('hits');
         log('处理完成，渲染成功');
@@ -446,7 +422,7 @@
       }
     }
 
-    // ---------- 文件读取入口 ----------
+    // ================= 文件读取入口 =================
     function handleFile(file) {
       log('handleFile 被调用，文件名：' + file.name + '，大小：' + file.size);
       if (!/\.csv$/i.test(file.name)) {
@@ -459,11 +435,9 @@
         log('文件过大', 'warn');
         return;
       }
-
       var reader = new FileReader();
       reader.readAsArrayBuffer(file);
       log('开始读取文件（ArrayBuffer）...');
-
       reader.onload = function(e) {
         log('文件读取成功，数据长度：' + e.target.result.byteLength);
         try {
@@ -472,19 +446,16 @@
           var hasBOM = (uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array[2] === 0xBF);
           var offset = hasBOM ? 3 : 0;
           log('BOM检测：' + (hasBOM ? '有' : '无') + '，偏移量：' + offset);
-
           var dataView = uint8Array.slice(offset);
           var decoder = new TextDecoder('UTF-8', { fatal: false });
           var text = decoder.decode(dataView);
           log('UTF-8解码后长度：' + text.length + '，包含替换字符 �：' + text.includes('\uFFFD'));
-
           if (text.includes('\uFFFD')) {
             log('尝试 GBK 解码...');
             var gbkDecoder = new TextDecoder('GBK', { fatal: false });
             text = gbkDecoder.decode(dataView);
             log('GBK解码完成，长度：' + text.length);
           }
-
           processCSV(text, file.name);
         } catch (err) {
           log('解码或处理过程异常：' + err.message, 'error');
@@ -492,87 +463,86 @@
           alert('文件处理出错：' + err.message);
         }
       };
-
       reader.onerror = function(e) {
         log('FileReader 错误：' + e, 'error');
         alert('文件读取失败，请重试。');
       };
     }
 
-    // ---------- 使用 showOpenFilePicker API（推荐） ----------
-    async function pickFile() {
-      log('点击“选择文件”按钮');
-      try {
-        // 检查浏览器是否支持
-        if (!window.showOpenFilePicker) {
-          log('浏览器不支持 showOpenFilePicker，回退到 input.click()', 'warn');
-          // 回退到传统方式（但您已知可能无效）
-          fileInput.click();
-          return;
-        }
-        // 调用 API
-        const [handle] = await window.showOpenFilePicker({
-          types: [{
-            description: 'CSV 文件',
-            accept: { 'text/csv': ['.csv'] }
-          }],
-          multiple: false
-        });
-        const file = await handle.getFile();
-        log('通过 showOpenFilePicker 获取到文件：' + file.name);
-        handleFile(file);
-      } catch (err) {
-        if (err.name === 'AbortError' || err.message.includes('abort')) {
-          log('用户取消了文件选择', 'warn');
-        } else {
-          log('选择文件出错：' + err.message, 'error');
-          console.error(err);
-          alert('选择文件失败：' + err.message);
+    // ================= 核心交互：全屏拖拽 + 粘贴 =================
+
+    // 1. 全屏拖拽：在 document 上监听
+    var dragCounter = 0; // 用于防止 dragleave 误触发
+    document.addEventListener('dragenter', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter++;
+      dropZone.classList.add('dragover');
+      log('dragenter (全局)');
+    });
+    document.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      // 不重复添加类
+    });
+    document.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        dropZone.classList.remove('dragover');
+        log('dragleave (全局)');
+      }
+    });
+    document.addEventListener('drop', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('dragover');
+      dragCounter = 0;
+      var files = e.dataTransfer && e.dataTransfer.files;
+      log('drop 事件 (全局)，文件数：' + (files ? files.length : 0));
+      if (files && files.length > 0) {
+        handleFile(files[0]);
+      } else {
+        log('drop 事件无文件', 'warn');
+      }
+    });
+
+    // 2. 粘贴支持（从文件夹复制文件后粘贴）
+    document.addEventListener('paste', function(e) {
+      var items = e.clipboardData && e.clipboardData.items;
+      log('paste 事件触发，items 数量：' + (items ? items.length : 0));
+      if (!items) return;
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        if (item.kind === 'file') {
+          var file = item.getAsFile();
+          if (file) {
+            log('从粘贴板获取到文件：' + file.name);
+            handleFile(file);
+            break; // 只处理第一个文件
+          }
         }
       }
-    }
+    });
 
-    // 绑定按钮事件
-    pickBtn.addEventListener('click', pickFile);
-
-    // 备选：传统 input 的 change（可能不触发，但保留）
+    // 3. 备选：点击 dropZone 弹出文件选择框（但仍可能因 change 问题无效，仅作备胎）
+    dropZone.addEventListener('click', function() {
+      log('点击 dropZone，尝试 fileInput.click() (备选)');
+      fileInput.click();
+    });
     fileInput.addEventListener('change', function() {
-      log('fileInput change 事件（备选）', 'info');
+      log('fileInput change 事件（备选）');
       if (fileInput.files.length > 0) {
         handleFile(fileInput.files[0]);
         fileInput.value = '';
       }
     });
 
-    // ---------- 拖拽事件（保留，以防万一） ----------
-    ['dragenter', 'dragover'].forEach(function(ev) {
-      dropZone.addEventListener(ev, function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.add('dragover');
-      });
-    });
-
-    ['dragleave', 'drop'].forEach(function(ev) {
-      dropZone.addEventListener(ev, function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.remove('dragover');
-        if (ev === 'drop') {
-          log('drop 事件触发（备选）');
-          var files = e.dataTransfer && e.dataTransfer.files;
-          if (files && files.length > 0) {
-            handleFile(files[0]);
-          }
-        }
-      });
-    });
-
-    // 视图切换
+    // ================= 视图切换与导出 =================
     tabHits.addEventListener('click', function() { render('hits'); });
     tabAll.addEventListener('click', function() { render('all'); });
-
-    // 导出
     btnExport.addEventListener('click', function() {
       if (hits.length === 0) { alert('当前没有命中行可导出。'); return; }
       var lines = ['\uFEFF行号,Reg. Addr.(h),Data(h),Bit(5)'];
@@ -588,7 +558,7 @@
       log('导出成功');
     });
 
-    log('所有事件绑定完成，等待用户操作...');
+    log('所有事件绑定完成，等待用户拖拽或粘贴文件...');
   });
 })();
 </script>
