@@ -5,291 +5,115 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>高通PMIC OCP检查工具</title>
 <style>
-  /* ================= 全局样式（移除CSS变量，使用硬编码值，兼容IE） ================= */
-  * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }
-  body {
-    font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
-    background: #F5F7FA;
-    color: #2E3440;
-    padding: 24px 16px;
-  }
-  .container {
-    max-width: 1100px;
-    margin: 0 auto;
-  }
-  h1 {
-    font-size: 22px;
-    color: #1C3A5E;
-    margin-bottom: 6px;
-  }
-  .sub {
-    color: #6B7280;
-    font-size: 13px;
-    margin-bottom: 20px;
-    line-height: 1.7;
-  }
+  /* ================= 全局样式变量与基础样式 ================= */
+  :root{ --accent:#2D5F8A; --accent-dark:#1C3A5E; --red:#D93025; --red-bg:#FDECEA;
+         --gray:#6B7280; --border:#D9DEE4; }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif; background:#F5F7FA; color:#2E3440; padding:24px 16px;}
+  .container{max-width:1100px; margin:0 auto;}
+  h1{font-size:22px; color:var(--accent-dark); margin-bottom:6px;}
+  .sub{color:var(--gray); font-size:13px; margin-bottom:20px; line-height:1.7;}
 
   /* ================= 拖拽区样式 ================= */
-  #dropZone {
-    border: 2px dashed #2D5F8A;
-    border-radius: 10px;
-    background: #fff;
-    padding: 46px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: all .15s;
-  }
-  #dropZone.dragover {
-    background: #EAF2F9;
-    border-color: #1C3A5E;
-    box-shadow: 0 0 0 4px rgba(45, 95, 138, 0.12);
-  }
-  #dropZone .big {
-    font-size: 17px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #1C3A5E;
-  }
-  #dropZone .small {
-    font-size: 13px;
-    color: #6B7280;
-  }
-  #fileInput {
-    display: none;
-  }
+  #dropZone{border:2px dashed var(--accent); border-radius:10px; background:#fff; padding:46px 20px;
+            text-align:center; cursor:pointer; transition:all .15s;}
+  #dropZone.dragover{background:#EAF2F9; border-color:var(--accent-dark); box-shadow:0 0 0 4px rgba(45,95,138,.12);}
+  #dropZone .big{font-size:17px; font-weight:600; margin-bottom:8px; color:var(--accent-dark);}
+  #dropZone .small{font-size:13px; color:var(--gray);}
+  #fileInput{display:none;}
 
   /* ================= 统计卡片样式 ================= */
-  .cards {
-    display: flex;
-    gap: 14px;
-    margin: 20px 0 6px;
-    flex-wrap: wrap;
-  }
-  .card {
-    flex: 1;
-    min-width: 170px;
-    background: #fff;
-    border: 1px solid #D9DEE4;
-    border-radius: 10px;
-    padding: 14px 18px;
-  }
-  .card .num {
-    font-size: 26px;
-    font-weight: 700;
-    color: #2D5F8A;
-  }
-  .card.hit .num {
-    color: #D93025;
-  }
-  .card .lbl {
-    font-size: 12px;
-    color: #6B7280;
-    margin-top: 4px;
-  }
-  .dist {
-    margin: 10px 0 0;
-    font-size: 13px;
-    color: #374151;
-    line-height: 1.8;
-  }
-  .dist code {
-    background: #EEF1F4;
-    padding: 1px 5px;
-    border-radius: 4px;
-    font-size: 12px;
-  }
+  .cards{display:flex; gap:14px; margin:20px 0 6px; flex-wrap:wrap;}
+  .card{flex:1; min-width:170px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 18px;}
+  .card .num{font-size:26px; font-weight:700; color:var(--accent);}
+  .card.hit .num{color:var(--red);}
+  .card .lbl{font-size:12px; color:var(--gray); margin-top:4px;}
+  .dist{margin:10px 0 0; font-size:13px; color:#374151; line-height:1.8;}
 
-  /* ================= 工具栏 ================= */
-  .toolbar {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    margin: 18px 0 10px;
-    flex-wrap: wrap;
-  }
-  .btn {
-    border: 1px solid #2D5F8A;
-    background: #fff;
-    color: #2D5F8A;
-    padding: 7px 16px;
-    border-radius: 6px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all .15s;
-  }
-  .btn:hover {
-    background: #EAF2F9;
-  }
-  .btn.active {
-    background: #2D5F8A;
-    color: #fff;
-  }
-  .btn.export {
-    border-color: #59A14F;
-    color: #3D7A34;
-    margin-left: auto;
-  }
-  .btn.export:hover {
-    background: #EEF7EC;
-  }
+  /* ================= 工具栏（视图切换/导出）样式 ================= */
+  .toolbar{display:flex; gap:10px; align-items:center; margin:18px 0 10px; flex-wrap:wrap;}
+  .btn{border:1px solid var(--accent); background:#fff; color:var(--accent); padding:7px 16px;
+       border-radius:6px; font-size:13px; cursor:pointer; transition:all .15s;}
+  .btn:hover{background:#EAF2F9;}
+  .btn.active{background:var(--accent); color:#fff;}
+  .btn.export{border-color:#59A14F; color:#3D7A34; margin-left:auto;}
+  .btn.export:hover{background:#EEF7EC;}
 
-  /* ================= 表头下拉筛选样式 ================= */
-  .th-wrap {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .farrow {
-    cursor: pointer;
-    font-size: 10px;
-    padding: 2px 5px;
-    border-radius: 4px;
-    opacity: .75;
-    user-select: none;
-  }
-  .farrow:hover {
-    background: rgba(255, 255, 255, 0.22);
-    opacity: 1;
-  }
-  .farrow.active {
-    color: #FFD54F;
-    opacity: 1;
-    font-weight: 700;
-  }
-  .filter-panel {
-    position: fixed;
-    z-index: 999;
-    background: #fff;
-    border: 1px solid #D9DEE4;
-    border-radius: 8px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14);
-    min-width: 210px;
-    max-width: 320px;
-    color: #2E3440;
-    font-weight: 400;
-  }
-  .filter-panel .fp-head {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    padding: 8px 12px;
-    border-bottom: 1px solid #EEF1F4;
-  }
-  .filter-panel .fp-title {
-    font-size: 13px;
-    font-weight: 600;
-    flex: 1;
-    white-space: nowrap;
-  }
-  .filter-panel .fp-btn {
-    border: 1px solid #D9DEE4;
-    background: #fff;
-    color: #2D5F8A;
-    border-radius: 5px;
-    font-size: 12px;
-    padding: 3px 9px;
-    cursor: pointer;
-  }
-  .filter-panel .fp-btn:hover {
-    background: #EAF2F9;
-  }
-  .filter-panel .fp-list {
-    max-height: 260px;
-    overflow: auto;
-    padding: 6px 4px;
-  }
-  .filter-panel label.fp-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 10px;
-    font-size: 13px;
-    cursor: pointer;
-    border-radius: 5px;
-    white-space: nowrap;
-  }
-  .filter-panel label.fp-item:hover {
-    background: #F2F6FA;
-  }
-  .filter-panel .fp-count {
-    color: #6B7280;
-    font-size: 12px;
-    margin-left: auto;
-    padding-left: 12px;
-  }
+  /* ================= 表头下拉筛选样式（多选模式） ================= */
+  .th-wrap{display:flex; align-items:center; gap:6px;}
+  .farrow{cursor:pointer; font-size:10px; padding:2px 5px; border-radius:4px; opacity:.75; user-select:none;}
+  .farrow:hover{background:rgba(255,255,255,.22); opacity:1;}
+  .farrow.active{color:#FFD54F; opacity:1; font-weight:700;}
+  .filter-panel{position:fixed; z-index:999; background:#fff; border:1px solid var(--border);
+                border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.14); min-width:210px; max-width:320px;
+                color:#2E3440; font-weight:400;}
+  .filter-panel .fp-head{display:flex; gap:8px; align-items:center; padding:8px 12px; border-bottom:1px solid #EEF1F4;}
+  .filter-panel .fp-title{font-size:13px; font-weight:600; flex:1; white-space:nowrap;}
+  .filter-panel .fp-btn{border:1px solid var(--border); background:#fff; color:var(--accent); border-radius:5px;
+                        font-size:12px; padding:3px 9px; cursor:pointer;}
+  .filter-panel .fp-btn:hover{background:#EAF2F9;}
+  .filter-panel .fp-list{max-height:260px; overflow:auto; padding:6px 4px;}
+  .filter-panel label.fp-item{display:flex; align-items:center; gap:8px; padding:5px 10px; font-size:13px;
+                              cursor:pointer; border-radius:5px; white-space:nowrap;}
+  .filter-panel label.fp-item:hover{background:#F2F6FA;}
+  .filter-panel .fp-count{color:var(--gray); font-size:12px; margin-left:auto; padding-left:12px;}
 
   /* ================= 数据表格样式 ================= */
-  .tablewrap {
-    max-height: 62vh;
-    overflow: auto;
-    border-radius: 8px;
-    border: 1px solid #D9DEE4;
-    background: #fff;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-  th {
-    background: #2D5F8A;
-    color: #fff;
-    padding: 9px 12px;
-    text-align: left;
-    font-weight: 600;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    white-space: nowrap;
-  }
-  td {
-    padding: 7px 12px;
-    border-bottom: 1px solid #EEF1F4;
-    white-space: nowrap;
-  }
-  tbody tr:nth-child(even) td {
-    background: #F8FAFC;
-  }
-  tbody tr.hit td {
-    background: #FDECEA;
-    color: #D93025;
-    font-weight: 600;
-  }
-  .b5 {
-    color: #D93025;
-    font-weight: 700;
-    text-decoration: underline;
-  }
-  tr.hit .b5 {
-    color: #8B1A10;
-  }
-  code {
-    background: #EEF1F4;
-    padding: 1px 5px;
-    border-radius: 4px;
-    font-size: 12px;
-  }
+  .tablewrap{max-height:62vh; overflow:auto; border-radius:8px; border:1px solid var(--border); background:#fff;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{background:var(--accent); color:#fff; padding:9px 12px; text-align:left; font-weight:600;
+     position:sticky; top:0; z-index:1; white-space:nowrap;}
+  td{padding:7px 12px; border-bottom:1px solid #EEF1F4; white-space:nowrap;}
+  tbody tr:nth-child(even) td{background:#F8FAFC;}
+  tbody tr.hit td{background:var(--red-bg); color:var(--red); font-weight:600;}
+  .b5{color:var(--red); font-weight:700; text-decoration:underline;}
+  tr.hit .b5{color:#8B1A10;}
 
-  /* ================= 消息与页脚 ================= */
-  #msg {
-    margin-top: 14px;
-    font-size: 13px;
-    color: #6B7280;
-    line-height: 1.7;
+  /* ================= 消息与页脚样式 ================= */
+  #msg{margin-top:14px; font-size:13px; color:var(--gray); line-height:1.7;}
+  #msg.err{color:var(--red); font-weight:600;}
+  .footer{margin-top:26px; font-size:12px; color:#9AA3AF; text-align:center;}
+  code{background:#EEF1F4; padding:1px 5px; border-radius:4px; font-size:12px;}
+  .loading-tip{text-align:center; padding:20px; color:var(--accent); font-weight:500;}
+
+  /* ================= 加载遮罩与进度条 ================= */
+  #loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 20px;
   }
-  #msg.err {
-    color: #D93025;
+  #loading-overlay .loader-text {
+    font-size: 18px;
     font-weight: 600;
+    color: var(--accent-dark);
+    letter-spacing: 0.5px;
   }
-  .footer {
-    margin-top: 26px;
-    font-size: 12px;
-    color: #9AA3AF;
-    text-align: center;
+  .progress-bar {
+    width: 320px;
+    max-width: 80vw;
+    height: 6px;
+    background: #e0e7ef;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);
+  }
+  .progress-bar .bar {
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #6ea8fe);
+    border-radius: 3px;
+    animation: loading-slide 1.2s ease-in-out infinite;
+  }
+  @keyframes loading-slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
   }
 </style>
 </head>
@@ -298,50 +122,49 @@
   <h1>高通PMIC OCP检查工具</h1>
   <div class="sub">
     功能：筛选 <code>Reg. Addr.(h)</code> 列中 <b>0X**08</b> 寄存器，判断 <b>Bit(5)</b> 是否为 1。
+
   </div>
 
   <!-- 拖拽 / 点击选择文件区域 -->
   <div id="dropZone">
+    <!-- <div class="big">将 SPMI.CSV 文件拖拽到此处</div> -->
     <div class="big">点击此处选择文件（支持 .csv 文件格式）</div>
   </div>
   <input type="file" id="fileInput" accept=".csv,text/csv">
 
+  <!-- 加载遮罩 -->
+  <div id="loading-overlay">
+    <div class="loader-text">⏳ 正在解析文件，请稍候...</div>
+    <div class="progress-bar"><div class="bar"></div></div>
+  </div>
+
   <!-- 结果展示区域 -->
   <div id="result" style="display:none">
-
-    <!-- 统计卡片 -->
     <div class="cards">
       <div class="card"><div class="num" id="numTotal">0</div><div class="lbl">数据总行数</div></div>
       <div class="card"><div class="num" id="numAddr08">0</div><div class="lbl">符合 0X**08 格式的地址行</div></div>
       <div class="card hit"><div class="num" id="numHit">0</div><div class="lbl">Bit(5) = 1 命中行</div></div>
     </div>
-
-    <!-- 分布展示 -->
     <div class="dist" id="dist"></div>
-
-    <!-- 工具栏 -->
     <div class="toolbar">
       <button class="btn active" id="tabHits">仅看命中行</button>
       <button class="btn" id="tabAll">全部 **08 地址行</button>
       <button class="btn export" id="btnExport">导出命中清单 (CSV)</button>
     </div>
-
-    <!-- 数据表格 -->
     <div class="tablewrap">
       <table>
         <thead>
           <tr>
             <th style="width:90px">行号</th>
-            <th style="width:150px"><div class="th-wrap">Addr.(h)<span class="farrow" data-col="addr">&#9660;</span></div></th>
-            <th style="width:190px"><div class="th-wrap">Reg. Addr.(h)<span class="farrow" data-col="reg">&#9660;</span></div></th>
-            <th style="width:170px"><div class="th-wrap">Data(h)<span class="farrow" data-col="data">&#9660;</span></div></th>
+            <th style="width:150px"><div class="th-wrap">Addr.(h)<span class="farrow" data-col="addr" title="下拉筛选（多选）">&#9660;</span></div></th>
+            <th style="width:190px"><div class="th-wrap">Reg. Addr.(h)<span class="farrow" data-col="reg" title="下拉筛选（多选）">&#9660;</span></div></th>
+            <th style="width:170px"><div class="th-wrap">Data(h)<span class="farrow" data-col="data" title="下拉筛选（多选）">&#9660;</span></div></th>
             <th>低字节二进制（b7~b0）</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
-
     <div id="msg"></div>
   </div>
 
@@ -350,99 +173,59 @@
 
 <script>
 /* =====================================================================
- *  优化说明：
- *  1. 使用 parseInt 替代 BigInt，兼容 IE11 及旧版浏览器
- *  2. 使用 var 替代 let/const，兼容 IE11
- *  3. 使用传统 function 替代箭头函数，兼容 IE11
- *  4. 使用字符串拼接替代模板字符串，兼容 IE11
- *  5. 使用传统 for 循环替代 Array.prototype.every / forEach
- *  6. 使用 Object 替代 Set，兼容 IE11
- *  7. 使用 getAttribute 替代 dataset，兼容 IE10-
- *  8. CSS 使用硬编码颜色值，移除 CSS 变量
- *  9. 增强文件读取错误处理
+ * 增强版：支持 URL 参数 ?file=xxx.csv 自动加载 + 加载进度指示器
+ * 修复拖拽事件，确保拖拽上传可用
  * ===================================================================== */
-
-(function() {
-  /* ---------- 页面元素 ---------- */
-  var dropZone = document.getElementById('dropZone');
+(function(){
+  /* ---------- 页面元素引用 ---------- */
+  var dropZone  = document.getElementById('dropZone');
   var fileInput = document.getElementById('fileInput');
   var resultBox = document.getElementById('result');
-  var tbody = document.getElementById('tbody');
-  var msgBox = document.getElementById('msg');
-  var tabHits = document.getElementById('tabHits');
-  var tabAll = document.getElementById('tabAll');
+  var tbody     = document.getElementById('tbody');
+  var msgBox    = document.getElementById('msg');
+  var tabHits   = document.getElementById('tabHits');
+  var tabAll    = document.getElementById('tabAll');
   var btnExport = document.getElementById('btnExport');
-
-  /* 所有箭头元素（用数组存储，兼容IE） */
-  var arrowNodes = document.querySelectorAll('.farrow');
-  var arrows = [];
-  for (var ai = 0; ai < arrowNodes.length; ai++) {
-    arrows.push(arrowNodes[ai]);
-  }
+  var arrows    = document.querySelectorAll('.farrow');
+  var loadingOverlay = document.getElementById('loading-overlay');
 
   /* ---------- 全局数据 ---------- */
-  var all08 = [];      // 所有符合 **08 格式的行
-  var hits = [];       // Bit5=1 的命中行
-  var curFile = '';    // 当前文件名
-  var curTab = 'hits'; // 当前视图：hits / all
+  var all08 = [];
+  var hits = [];
+  var curFile = '';
+  var curTab = 'hits';
+  var filters = { addr:null, reg:null, data:null };
+  var panel = null;
+  var panelCol = null;
+  var COL_NAMES = { addr:'Addr.(h)', reg:'Reg. Addr.(h)', data:'Data(h)' };
 
-  /* 筛选状态：addr / reg / data 各自为一个对象 { value: true } 或 null */
-  var filters = { addr: null, reg: null, data: null };
-  var panel = null;       // 当前打开的面板元素
-  var panelCol = null;    // 当前面板对应的列键
-
-  var COL_NAMES = { addr: 'Addr.(h)', reg: 'Reg. Addr.(h)', data: 'Data(h)' };
-
-  /* ---------- CSV 解析（兼容 IE） ---------- */
-  function parseCSV(text) {
-    // 去除 BOM
+  /* ---------- 工具函数 ---------- */
+  function parseCSV(text){
     if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-    var rows = [];
-    var row = [];
-    var field = '';
-    var inQ = false;
-    for (var i = 0; i < text.length; i++) {
-      var c = text.charAt(i);
-      if (inQ) {
-        if (c === '"') {
-          if (i + 1 < text.length && text.charAt(i + 1) === '"') {
-            field += '"';
-            i++;
-          } else {
-            inQ = false;
-          }
-        } else {
-          field += c;
-        }
+    var rows = [], row = [], field = '', inQ = false;
+    for (var i = 0; i < text.length; i++){
+      var c = text[i];
+      if (inQ){
+        if (c === '"'){
+          if (text[i+1] === '"'){ field += '"'; i++; }
+          else inQ = false;
+        } else field += c;
       } else {
-        if (c === '"') {
-          inQ = true;
-        } else if (c === ',') {
-          row.push(field);
-          field = '';
-        } else if (c === '\n') {
-          row.push(field);
-          rows.push(row);
-          row = [];
-          field = '';
-        } else if (c !== '\r') {
-          field += c;
-        }
+        if (c === '"') inQ = true;
+        else if (c === ','){ row.push(field); field = ''; }
+        else if (c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
+        else if (c !== '\r') field += c;
       }
     }
-    if (field.length > 0 || row.length > 0) {
-      row.push(field);
-      rows.push(row);
-    }
+    if (field.length > 0 || row.length > 0){ row.push(field); rows.push(row); }
     return rows;
   }
 
-  /* ---------- 单元格清洗 ---------- */
-  function cleanCell(v) {
+  function cleanCell(v){
     if (v === null || v === undefined) return '';
     var s = String(v).trim();
     if (s.charAt(0) === '=') s = s.slice(1).trim();
-    if (s.length >= 2 && s.charAt(0) === '"' && s.charAt(s.length - 1) === '"') {
+    if (s.length >= 2 && s.charAt(0) === '"' && s.charAt(s.length-1) === '"'){
       s = s.slice(1, -1);
     } else {
       s = s.replace(/"/g, '');
@@ -450,365 +233,233 @@
     return s.trim();
   }
 
-  /* ---------- 消息提示 ---------- */
-  function showMsg(t, isErr) {
+  function showMsg(t, isErr){
     msgBox.textContent = t;
     msgBox.className = isErr ? 'err' : '';
   }
 
-  /* ---------- HTML 转义 ---------- */
-  function escHtml(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  function escHtml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  /* ---------- 低字节二进制展示（高亮 bit5） ---------- */
-  function binHtml(hexStr) {
+  function binHtml(hexStr){
     var h = hexStr.length % 2 ? '0' + hexStr : hexStr;
     var lastByte = h.slice(-2);
     var n = parseInt(lastByte, 16);
-    if (isNaN(n)) n = 0;
     var bin = ('00000000' + n.toString(2)).slice(-8);
     var out = '';
-    for (var i = 0; i < 8; i++) {
-      if (i === 2) {
-        out += '<span class="b5">' + bin.charAt(i) + '</span>';
-      } else {
-        out += bin.charAt(i);
-      }
+    for (var i = 0; i < 8; i++){
+      if (i === 2) out += '<span class="b5">' + bin[i] + '</span>';
+      else out += bin[i];
     }
     return '<code>' + out + '</code>';
   }
 
-  /* ---------- 当前数据源 ---------- */
-  function currentList() {
-    return (curTab === 'all') ? all08 : hits;
-  }
+  function currentList(){ return (curTab === 'all') ? all08 : hits; }
 
-  /* ---------- 取行的筛选键值 ---------- */
-  function fval(r, col) {
+  function fval(r, col){
     var v = String(r[col]);
     return v === '' ? '(空)' : v;
   }
 
-  /* ---------- 筛选匹配（多选） ---------- */
-  function matchFilters(r) {
-    var fa = filters.addr;
-    var fr = filters.reg;
-    var fd = filters.data;
-    if (fa && !fa[fval(r, 'addr')]) return false;
-    if (fr && !fr[fval(r, 'reg')]) return false;
-    if (fd && !fd[fval(r, 'data')]) return false;
+  function matchFilters(r){
+    if (filters.addr && !filters.addr.has(fval(r,'addr'))) return false;
+    if (filters.reg  && !filters.reg.has(fval(r,'reg')))  return false;
+    if (filters.data && !filters.data.has(fval(r,'data'))) return false;
     return true;
   }
 
-  /* ---------- 更新箭头高亮状态 ---------- */
-  function updateArrowState() {
-    for (var i = 0; i < arrows.length; i++) {
-      var a = arrows[i];
-      var col = a.getAttribute('data-col');
-      if (filters[col]) {
-        a.className += ' active';
-      } else {
-        a.className = a.className.replace(/\s*active\s*/g, ' ');
-      }
-    }
+  function closePanel(){
+    if (panel){ panel.remove(); panel = null; panelCol = null; }
   }
 
-  /* ---------- 关闭面板 ---------- */
-  function closePanel() {
-    if (panel && panel.parentNode) {
-      panel.parentNode.removeChild(panel);
-    }
-    panel = null;
-    panelCol = null;
+  function updateArrowState(){
+    arrows.forEach(function(a){
+      a.classList.toggle('active', !!filters[a.dataset.col]);
+    });
   }
 
-  /* ---------- 应用面板筛选 ---------- */
-  function applyPanel(col) {
-    if (!panel) return;
-    var boxes = panel.querySelectorAll('input[type=checkbox]');
-    var chosen = {};
-    var total = 0;
-    for (var i = 0; i < boxes.length; i++) {
-      total++;
-      if (boxes[i].checked) {
-        chosen[boxes[i].value] = true;
-      }
-    }
-    var checkedCount = 0;
-    for (var k in chosen) { if (chosen.hasOwnProperty(k)) checkedCount++; }
-    if (checkedCount === 0 || checkedCount === total) {
-      filters[col] = null;
-    } else {
-      filters[col] = chosen;
-    }
-    updateArrowState();
-    render(curTab);
-  }
-
-  /* ---------- 打开面板 ---------- */
-  function openPanel(col, anchor) {
+  function openPanel(col, anchor){
     closePanel();
     var list = currentList();
     var cnt = {};
-    for (var i = 0; i < list.length; i++) {
-      var v = fval(list[i], col);
+    list.forEach(function(r){
+      var v = fval(r, col);
       cnt[v] = (cnt[v] || 0) + 1;
-    }
-    var keys = [];
-    for (var k in cnt) {
-      if (cnt.hasOwnProperty(k)) keys.push(k);
-    }
-    keys.sort(function(a, b) {
-      return cnt[b] - cnt[a] || (a < b ? -1 : 1);
     });
-
+    var keys = Object.keys(cnt).sort(function(a,b){ return cnt[b]-cnt[a] || (a<b?-1:1); });
     var sel = filters[col];
 
     panel = document.createElement('div');
     panel.className = 'filter-panel';
-
-    var headHtml = '<div class="fp-head">' +
-      '<span class="fp-title">' + COL_NAMES[col] + ' 筛选</span>' +
-      '<button class="fp-btn" data-act="all">全选</button>' +
-      '<button class="fp-btn" data-act="none">清空</button>' +
-      '</div>';
-
-    var itemsHtml = '';
-    for (var j = 0; j < keys.length; j++) {
-      var k2 = keys[j];
-      var checked = (!sel || sel[k2]) ? ' checked' : '';
-      itemsHtml += '<label class="fp-item">' +
-        '<input type="checkbox" value="' + escHtml(k2) + '"' + checked + '>' +
-        '<span>' + escHtml(k2) + '</span>' +
-        '<span class="fp-count">' + cnt[k2] + '</span>' +
-        '</label>';
-    }
-    if (itemsHtml === '') {
-      itemsHtml = '<div style="padding:10px 12px;color:#6B7280;font-size:13px;">无数据</div>';
-    }
-    panel.innerHTML = headHtml + '<div class="fp-list">' + itemsHtml + '</div>';
+    var head = '<div class="fp-head"><span class="fp-title">' + COL_NAMES[col] + ' 筛选</span>'
+             + '<button class="fp-btn" data-act="all">全选</button>'
+             + '<button class="fp-btn" data-act="none">清空</button></div>';
+    var items = '';
+    keys.forEach(function(k){
+      var checked = (!sel || sel.has(k)) ? ' checked' : '';
+      items += '<label class="fp-item"><input type="checkbox" value="' + escHtml(k) + '"' + checked + '>'
+             + '<span>' + escHtml(k) + '</span><span class="fp-count">' + cnt[k] + '</span></label>';
+    });
+    panel.innerHTML = head + '<div class="fp-list">'
+                    + (items || '<div style="padding:10px 12px;color:#6B7280;font-size:13px">无数据</div>')
+                    + '</div>';
     document.body.appendChild(panel);
 
-    // 定位
     var rect = anchor.getBoundingClientRect();
-    var left = rect.left;
-    var panelWidth = panel.offsetWidth || 240;
-    if (left + panelWidth > window.innerWidth - 8) {
-      left = window.innerWidth - panelWidth - 8;
-    }
-    if (left < 8) left = 8;
-    panel.style.left = left + 'px';
-    panel.style.top = (rect.bottom + 4) + 'px';
+    var left = Math.min(rect.left, window.innerWidth - panel.offsetWidth - 8);
+    panel.style.left = Math.max(8, left) + 'px';
+    panel.style.top  = (rect.bottom + 4) + 'px';
 
-    // 按钮事件
-    var btns = panel.querySelectorAll('.fp-btn');
-    for (var b = 0; b < btns.length; b++) {
-      (function(btn) {
-        btn.addEventListener('click', function() {
-          var action = btn.getAttribute('data-act');
-          var cbs = panel.querySelectorAll('input[type=checkbox]');
-          for (var c = 0; c < cbs.length; c++) {
-            cbs[c].checked = (action === 'all');
-          }
-          applyPanel(col);
+    panel.querySelectorAll('.fp-btn').forEach(function(b){
+      b.addEventListener('click', function(){
+        panel.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+          cb.checked = (b.dataset.act === 'all');
         });
-      })(btns[b]);
-    }
-
-    // 复选框事件
-    var cbs2 = panel.querySelectorAll('input[type=checkbox]');
-    for (var c2 = 0; c2 < cbs2.length; c2++) {
-      (function(cb) {
-        cb.addEventListener('change', function() {
-          applyPanel(col);
-        });
-      })(cbs2[c2]);
-    }
-
+        applyPanel(col);
+      });
+    });
+    panel.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+      cb.addEventListener('change', function(){ applyPanel(col); });
+    });
     panelCol = col;
   }
 
-  /* ---------- 渲染表格 ---------- */
-  function render(tab) {
-    curTab = tab || 'hits';
-    var list = (curTab === 'all') ? all08 : hits;
-    var shown = [];
-    for (var i = 0; i < list.length; i++) {
-      if (matchFilters(list[i])) {
-        shown.push(list[i]);
-      }
-    }
+  function applyPanel(col){
+    var boxes = panel.querySelectorAll('input[type=checkbox]');
+    var chosen = [];
+    boxes.forEach(function(cb){ if (cb.checked) chosen.push(cb.value); });
+    if (chosen.length === 0 || chosen.length === boxes.length){ filters[col] = null; }
+    else { filters[col] = new Set(chosen); }
+    updateArrowState();
+    render(curTab);
+  }
 
+  arrows.forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.stopPropagation();
+      var col = a.dataset.col;
+      if (panel && panelCol === col){ closePanel(); }
+      else { openPanel(col, a); }
+    });
+  });
+  document.addEventListener('mousedown', function(e){
+    if (panel && !panel.contains(e.target)) closePanel();
+  });
+  document.querySelector('.tablewrap').addEventListener('scroll', closePanel);
+  window.addEventListener('scroll', closePanel);
+  window.addEventListener('resize', closePanel);
+
+  /* ---------- 核心渲染 ---------- */
+  function render(tab){
+    curTab = tab;
+    var list = (tab === 'all') ? all08 : hits;
+    var shown = list.filter(matchFilters);
     var html = '';
-    for (var j2 = 0; j2 < shown.length; j2++) {
-      var r = shown[j2];
-      var cls = r.bit5 ? ' class="hit"' : '';
-      html += '<tr' + cls + '>' +
-        '<td>' + r.excelRow + '</td>' +
-        '<td>' + r.addr + '</td>' +
-        '<td>' + r.reg + '</td>' +
-        '<td>' + r.data + '</td>' +
-        '<td>' + binHtml(r.hexStr) + '</td>' +
-        '</tr>';
+    for (var i = 0; i < shown.length; i++){
+      var r = shown[i];
+      html += '<tr' + (r.bit5 ? ' class="hit"' : '') + '>'
+            + '<td>' + r.excelRow + '</td>'
+            + '<td>' + r.addr + '</td>'
+            + '<td>' + r.reg + '</td>'
+            + '<td>' + r.data + '</td>'
+            + '<td>' + binHtml(r.hexStr) + '</td>'
+            + '</tr>';
     }
-    if (html === '') {
-      html = '<tr><td colspan="5" style="text-align:center;color:#6B7280;padding:20px;">无数据</td></tr>';
-    }
-    tbody.innerHTML = html;
-
-    // 按钮状态
-    tabHits.className = 'btn' + (curTab !== 'all' ? ' active' : '');
-    tabAll.className = 'btn' + (curTab === 'all' ? ' active' : '');
-
-    var viewName = (curTab === 'all') ? '全部 **08 地址行' : 'Bit(5)=1 命中行';
+    tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:#6B7280;padding:20px">无数据</td></tr>';
+    tabHits.className = 'btn' + (tab !== 'all' ? ' active' : '');
+    tabAll.className  = 'btn' + (tab === 'all' ? ' active' : '');
+    var viewName = (tab === 'all') ? '全部 **08 地址行' : 'Bit(5)=1 命中行';
     var filterOn = !!(filters.addr || filters.reg || filters.data);
-    var msg = '当前显示：' + viewName + ' ' + shown.length;
-    if (filterOn) {
-      msg += ' / ' + list.length + ' 条（已应用表头下拉筛选，支持多选；点击表头 ▼ 可修改）';
-    } else {
-      msg += ' 条';
-    }
-    msg += '。行号为 CSV/Excel 中的实际行号。';
-    showMsg(msg, false);
+    showMsg('当前显示：' + viewName + ' ' + shown.length + (filterOn ? (' / ' + list.length) : '') + ' 条'
+          + (filterOn ? '（已应用表头下拉筛选，支持多选；点击表头 ▼ 可修改）' : '')
+          + '。行号为 CSV/Excel 中的实际行号。', false);
   }
 
   /* ---------- 核心处理流程 ---------- */
-  function process(text, fileName) {
+  function process(text, fileName){
+    loadingOverlay.style.display = 'flex';
+    setTimeout(function(){
+      try {
+        _doProcess(text, fileName);
+      } catch (e) {
+        console.error('解析异常:', e);
+        alert('解析文件时发生异常：' + e.message);
+      } finally {
+        loadingOverlay.style.display = 'none';
+      }
+    }, 50);
+  }
+
+  function _doProcess(text, fileName){
     curFile = fileName;
     var rows = parseCSV(text);
 
-    // 定位表头
-    var headerIdx = -1;
-    var addrCol = -1;
-    var regCol = -1;
-    var dataCol = -1;
-    var limit = rows.length < 20 ? rows.length : 20;
-    for (var r = 0; r < limit; r++) {
-      var norm = [];
-      for (var c = 0; c < rows[r].length; c++) {
-        norm.push(cleanCell(rows[r][c]).toLowerCase().replace(/\s+/g, ''));
-      }
-      var ai = -1;
-      var ri = -1;
-      var di = -1;
-      for (var n = 0; n < norm.length; n++) {
-        if (norm[n] === 'addr.(h)') ai = n;
-        if (norm[n] === 'reg.addr.(h)') ri = n;
-        if (norm[n] === 'data(h)') di = n;
-      }
-      if (ri >= 0 && di >= 0) {
-        headerIdx = r;
-        addrCol = ai;
-        regCol = ri;
-        dataCol = di;
-        break;
-      }
+    var headerIdx = -1, addrCol = -1, regCol = -1, dataCol = -1;
+    for (var r = 0; r < Math.min(rows.length, 20); r++){
+      var norm = rows[r].map(function(c){ return cleanCell(c).toLowerCase().replace(/\s+/g, ''); });
+      var ai = norm.indexOf('addr.(h)');
+      var ri = norm.indexOf('reg.addr.(h)');
+      var di = norm.indexOf('data(h)');
+      if (ri >= 0 && di >= 0){ headerIdx = r; addrCol = ai; regCol = ri; dataCol = di; break; }
     }
-
-    if (headerIdx < 0) {
-      resultBox.style.display = 'none';
+    if (headerIdx < 0){
       alert('未在文件中找到 "Reg. Addr.(h)" 与 "Data(h)" 列，请检查 CSV 格式。');
       return;
     }
 
-    all08 = [];
-    hits = [];
-    var totalData = 0;
-    var badHex = 0;
-
-    for (var i2 = headerIdx + 1; i2 < rows.length; i2++) {
-      var raw = rows[i2];
-      // 检查是否为空行
-      var isEmpty = true;
-      for (var ec = 0; ec < raw.length; ec++) {
-        if (cleanCell(raw[ec]) !== '') { isEmpty = false; break; }
-      }
+    all08 = []; hits = [];
+    var totalData = 0, badHex = 0;
+    for (var i = headerIdx + 1; i < rows.length; i++){
+      var raw = rows[i];
+      var isEmpty = raw.every(function(c){ return cleanCell(c) === ''; });
       if (isEmpty) continue;
-
       totalData++;
-      var addr = (addrCol >= 0 && addrCol < raw.length) ? cleanCell(raw[addrCol]) : '';
-      var reg = (regCol < raw.length) ? cleanCell(raw[regCol]) : '';
-      var data = (dataCol < raw.length) ? cleanCell(raw[dataCol]) : '';
-
-      // 检查是否以 08 结尾
+      var addr = (addrCol >= 0) ? cleanCell(raw[addrCol]) : '';
+      var reg  = cleanCell(raw[regCol]);
+      var data = cleanCell(raw[dataCol]);
       if (!/08$/i.test(reg)) continue;
-
       var hexStr = data.replace(/^0x/i, '').replace(/\s+/g, '');
-      var rec = {
-        excelRow: i2 + 1,
-        addr: addr,
-        reg: reg,
-        data: data,
-        hexStr: hexStr,
-        bit5: false,
-        valid: false
-      };
-
-      if (/^[0-9a-fA-F]+$/.test(hexStr)) {
-        var val = parseInt(hexStr, 16);
-        if (!isNaN(val)) {
-          rec.bit5 = ((val >> 5) & 1) === 1;
+      var rec = { excelRow: i + 1, addr: addr, reg: reg, data: data, hexStr: hexStr, bit5: false, valid: false };
+      if (/^[0-9a-fA-F]+$/.test(hexStr)){
+        try {
+          var val = BigInt('0x' + hexStr);
+          rec.bit5 = ((val >> BigInt(5)) & BigInt(1)) === BigInt(1);
           rec.valid = true;
-        }
+        } catch(e) { rec.valid = false; }
       }
-
-      if (!rec.valid) {
-        badHex++;
-        all08.push(rec);
-        continue;
-      }
+      if (!rec.valid){ badHex++; all08.push(rec); continue; }
       all08.push(rec);
       if (rec.bit5) hits.push(rec);
     }
 
-    // 更新统计卡片
-    document.getElementById('numTotal').textContent = totalData;
+    document.getElementById('numTotal').textContent  = totalData;
     document.getElementById('numAddr08').textContent = all08.length;
-    document.getElementById('numHit').textContent = hits.length;
+    document.getElementById('numHit').textContent    = hits.length;
 
-    // 分布统计
-    var addrMap = {};
-    var regMap = {};
-    for (var h2 = 0; h2 < hits.length; h2++) {
-      var ha = (hits[h2].addr || '(空)').toUpperCase();
-      var hr = (hits[h2].reg || '(空)').toUpperCase();
-      addrMap[ha] = (addrMap[ha] || 0) + 1;
-      regMap[hr] = (regMap[hr] || 0) + 1;
+    var addrMap = {}, regMap = {};
+    hits.forEach(function(h){
+      var ka = (h.addr || '(空)').toUpperCase();
+      var kr = (h.reg  || '(空)').toUpperCase();
+      addrMap[ka] = (addrMap[ka] || 0) + 1;
+      regMap[kr]  = (regMap[kr]  || 0) + 1;
+    });
+    function sortKeys(m){
+      return Object.keys(m).sort(function(a,b){ return m[b]-m[a] || (a<b?-1:1); });
     }
-
-    var addrKeys = [];
-    for (var ak in addrMap) { if (addrMap.hasOwnProperty(ak)) addrKeys.push(ak); }
-    addrKeys.sort(function(a, b) { return addrMap[b] - addrMap[a] || (a < b ? -1 : 1); });
-
-    var regKeys = [];
-    for (var rk in regMap) { if (regMap.hasOwnProperty(rk)) regKeys.push(rk); }
-    regKeys.sort(function(a, b) { return regMap[b] - regMap[a] || (a < b ? -1 : 1); });
-
     var distHtml = '文件：' + fileName + '<br>';
     distHtml += '符合条件（Bit5=1）行的 <b>Addr.(h)</b> 分布：';
-    if (addrKeys.length === 0) {
-      distHtml += '无';
-    } else {
-      for (var ak2 = 0; ak2 < addrKeys.length; ak2++) {
-        distHtml += ' <code>' + addrKeys[ak2] + '</code> × ' + addrMap[addrKeys[ak2]] + '　';
-      }
-    }
+    var ak = sortKeys(addrMap);
+    if (ak.length === 0) distHtml += '无';
+    ak.forEach(function(k){ distHtml += ' <code>' + k + '</code> × ' + addrMap[k] + '　'; });
     distHtml += '<br>符合条件（Bit5=1）行的 <b>Reg. Addr.(h)</b> 分布：';
-    if (regKeys.length === 0) {
-      distHtml += '无';
-    } else {
-      for (var rk2 = 0; rk2 < regKeys.length; rk2++) {
-        distHtml += ' <code>' + regKeys[rk2] + '</code> × ' + regMap[regKeys[rk2]] + '　';
-      }
-    }
-    if (badHex > 0) {
-      distHtml += '<br>（另有 ' + badHex + ' 行 Data 无法解析为 Hex，已忽略判定）';
-    }
+    var rk = sortKeys(regMap);
+    if (rk.length === 0) distHtml += '无';
+    rk.forEach(function(k){ distHtml += ' <code>' + k + '</code> × ' + regMap[k] + '　'; });
+    if (badHex > 0) distHtml += '<br>（另有 ' + badHex + ' 行 Data 无法解析为 Hex，已忽略判定）';
     document.getElementById('dist').innerHTML = distHtml;
 
-    // 重置筛选
-    filters = { addr: null, reg: null, data: null };
+    filters = { addr:null, reg:null, data:null };
     closePanel();
     updateArrowState();
 
@@ -816,126 +467,109 @@
     render('hits');
   }
 
-  /* ---------- 文件读取 ---------- */
-  function handleFile(file) {
-    if (!file) return;
-    if (!/\.csv$/i.test(file.name)) {
+  /* ---------- 文件读取入口 ---------- */
+  function handleFile(file){
+    if (!file) {
+      console.warn('handleFile 收到空文件');
+      return;
+    }
+    if (!/\.csv$/i.test(file.name)){
       alert('请拖入 .csv 格式的文件。');
       return;
     }
+    console.log('开始读取文件:', file.name);
     var reader = new FileReader();
-    reader.onload = function(e) {
-      try {
-        process(e.target.result, file.name);
-      } catch (err) {
-        alert('解析文件时出错：' + err.message + '\n请确认文件格式正确（UTF-8 编码的 CSV）。');
-        resultBox.style.display = 'none';
-      }
-    };
-    reader.onerror = function() {
-      alert('文件读取失败，请重试。');
-    };
-    // 使用 UTF-8 读取，若失败可尝试 GBK，但浏览器原生不支持 GBK
+    reader.onload = function(e){ process(e.target.result, file.name); };
+    reader.onerror = function(){ alert('文件读取失败，请重试。'); };
     reader.readAsText(file, 'UTF-8');
   }
 
-  /* ---------- 事件绑定（兼容 IE） ---------- */
+  /* ---------- URL 自动加载 ---------- */
+  function loadFromURL(){
+    var params = new URLSearchParams(window.location.search);
+    var fileParam = params.get('file');
+    if (!fileParam) return false;
+    loadingOverlay.style.display = 'flex';
+    fetch(fileParam)
+      .then(function(res){
+        if (!res.ok) throw new Error('HTTP ' + res.status + ' 文件未找到或无法读取');
+        return res.text();
+      })
+      .then(function(text){
+        process(text, fileParam.split('/').pop() || fileParam);
+      })
+      .catch(function(err){
+        loadingOverlay.style.display = 'none';
+        alert('自动加载失败：' + err.message + '\n\n请检查文件路径是否正确，或改用拖拽上传。');
+        console.error('Fetch error:', err);
+      });
+    return true;
+  }
 
-  // 点击拖拽区
-  dropZone.addEventListener('click', function() {
-    fileInput.click();
+  /* ---------- 事件绑定 ---------- */
+  // 点击选择文件
+  dropZone.addEventListener('click', function(){ fileInput.click(); });
+  fileInput.addEventListener('change', function(){ 
+    if (fileInput.files.length > 0) handleFile(fileInput.files[0]); 
+    fileInput.value = ''; 
   });
 
-  // 文件选择
-  fileInput.addEventListener('change', function() {
-    if (fileInput.files && fileInput.files.length > 0) {
-      handleFile(fileInput.files[0]);
-    }
-    fileInput.value = '';
-  });
-
-  // 拖拽事件
-  dropZone.addEventListener('dragenter', function(e) {
+  // 拖拽事件 —— 修复关键点
+  dropZone.addEventListener('dragenter', function(e){
     e.preventDefault();
     e.stopPropagation();
-    dropZone.className += ' dragover';
+    dropZone.classList.add('dragover');
   });
-
-  dropZone.addEventListener('dragover', function(e) {
+  dropZone.addEventListener('dragover', function(e){
     e.preventDefault();
     e.stopPropagation();
-    dropZone.className += ' dragover';
+    e.dataTransfer.dropEffect = 'copy';
+    dropZone.classList.add('dragover');
   });
-
-  dropZone.addEventListener('dragleave', function(e) {
+  dropZone.addEventListener('dragleave', function(e){
     e.preventDefault();
     e.stopPropagation();
-    dropZone.className = dropZone.className.replace(/\s*dragover\s*/g, ' ');
+    dropZone.classList.remove('dragover');
   });
-
-  dropZone.addEventListener('drop', function(e) {
+  dropZone.addEventListener('drop', function(e){
     e.preventDefault();
     e.stopPropagation();
-    dropZone.className = dropZone.className.replace(/\s*dragover\s*/g, ' ');
-    var files = e.dataTransfer && e.dataTransfer.files;
-    if (files && files.length > 0) {
-      handleFile(files[0]);
+    dropZone.classList.remove('dragover');
+    var files = e.dataTransfer.files;
+    console.log('拖拽文件数:', files.length);
+    if (files.length > 0) {
+      var f = files[0];
+      console.log('拖拽文件名:', f.name);
+      handleFile(f);
+    } else {
+      console.warn('没有文件被拖入');
     }
   });
 
   // 视图切换
-  tabHits.addEventListener('click', function() { render('hits'); });
-  tabAll.addEventListener('click', function() { render('all'); });
+  tabHits.addEventListener('click', function(){ render('hits'); });
+  tabAll.addEventListener('click', function(){ render('all'); });
 
   // 导出
-  btnExport.addEventListener('click', function() {
-    if (hits.length === 0) {
-      alert('当前没有命中行可导出。');
-      return;
-    }
+  btnExport.addEventListener('click', function(){
+    if (hits.length === 0){ alert('当前没有命中行可导出。'); return; }
     var lines = ['\uFEFF行号,Reg. Addr.(h),Data(h),Bit(5)'];
-    for (var i = 0; i < hits.length; i++) {
-      lines.push(hits[i].excelRow + ',' + hits[i].reg + ',' + hits[i].data + ',1');
-    }
+    hits.forEach(function(h){
+      lines.push(h.excelRow + ',' + h.reg + ',' + h.data + ',1');
+    });
     var blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    var name = curFile.replace(/\.csv$/i, '') || 'export';
-    a.download = name + '_Bit5命中清单.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    a.download = curFile.replace(/\.csv$/i, '') + '_Bit5命中清单.csv';
+    document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(a.href);
   });
 
-  /* ---------- 表头箭头点击（兼容 IE） ---------- */
-  for (var ai2 = 0; ai2 < arrows.length; ai2++) {
-    (function(arrow) {
-      arrow.addEventListener('click', function(e) {
-        e.stopPropagation();
-        var col = arrow.getAttribute('data-col');
-        if (panel && panelCol === col) {
-          closePanel();
-        } else {
-          openPanel(col, arrow);
-        }
-      });
-    })(arrows[ai2]);
+  /* ---------- 启动 ---------- */
+  var loaded = loadFromURL();
+  if (!loaded) {
+    showMsg('请拖入 CSV 文件，或点击上方区域选择。', false);
   }
-
-  // 点击外部关闭面板
-  document.addEventListener('mousedown', function(e) {
-    if (panel && !panel.contains(e.target)) {
-      closePanel();
-    }
-  });
-
-  // 滚动/缩放关闭面板
-  var tableWrap = document.querySelector('.tablewrap');
-  tableWrap.addEventListener('scroll', closePanel);
-  window.addEventListener('scroll', closePanel);
-  window.addEventListener('resize', closePanel);
-
 })();
 </script>
 </body>
