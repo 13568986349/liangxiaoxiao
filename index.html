@@ -22,6 +22,14 @@
   #dropZone .small{font-size:13px; color:var(--gray);}
   #fileInput{display:none;}
 
+  /* 新增：快捷按钮区域 */
+  .action-bar{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-bottom:16px;}
+  .action-btn{background:var(--accent); color:#fff; border:none; padding:10px 24px; border-radius:8px;
+              font-size:15px; cursor:pointer; transition:background .2s; display:inline-flex; align-items:center; gap:6px;}
+  .action-btn:hover{background:var(--accent-dark);}
+  .action-btn.secondary{background:#fff; color:var(--accent); border:1px solid var(--accent);}
+  .action-btn.secondary:hover{background:#EAF2F9;}
+
   .cards{display:flex; gap:14px; margin:20px 0 6px; flex-wrap:wrap;}
   .card{flex:1; min-width:170px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 18px;}
   .card .num{font-size:26px; font-weight:700; color:var(--accent);}
@@ -77,12 +85,19 @@
   <h1>高通PMIC OCP检查工具</h1>
   <div class="sub">
     功能：筛选 <code>Reg. Addr.(h)</code> 列中 <b>0X**08</b> 寄存器，判断 <b>Bit(5)</b> 是否为 1。
-    <br><strong>将 CSV 文件拖拽到页面任意位置，或粘贴（Ctrl+V）文件，均可自动解析。</strong>
+    <br><strong>支持多种方式上传：拖拽、粘贴、点击按钮选择，总有一种适合您的环境。</strong>
+  </div>
+
+  <!-- 快捷操作按钮组 -->
+  <div class="action-bar">
+    <button class="action-btn" id="pickBtn">📂 选择 CSV 文件</button>
+    <button class="action-btn secondary" id="pasteBtn">📋 从剪贴板粘贴</button>
+    <span style="font-size:13px; color:var(--gray); align-self:center;">也可直接拖拽文件到页面任意位置</span>
   </div>
 
   <div id="dropZone">
-    <div class="big">拖拽 CSV 文件到此处或页面任意位置</div>
-    <div class="small">也支持从文件夹复制文件后粘贴（Ctrl+V）</div>
+    <div class="big">或将文件拖拽到此区域</div>
+    <div class="small">支持 .csv 格式</div>
   </div>
   <input type="file" id="fileInput" accept=".csv,text/csv" style="display:none;">
 
@@ -123,7 +138,7 @@
 
 <script>
 (function() {
-  // ================= 日志函数 =================
+  // ================= 日志 =================
   function log(msg, type) {
     var prefix = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '✅';
     var full = '[' + new Date().toLocaleTimeString() + '] ' + prefix + ' ' + msg;
@@ -137,7 +152,6 @@
     } catch(e) {}
   }
 
-  // ================= 等待 DOM 加载 =================
   document.addEventListener('DOMContentLoaded', function() {
     log('DOM 加载完成，开始初始化...');
 
@@ -150,8 +164,10 @@
     var tabAll = document.getElementById('tabAll');
     var btnExport = document.getElementById('btnExport');
     var arrows = document.querySelectorAll('.farrow');
+    var pickBtn = document.getElementById('pickBtn');
+    var pasteBtn = document.getElementById('pasteBtn');
 
-    if (!dropZone || !fileInput || !resultBox || !tbody || !msgBox) {
+    if (!dropZone || !fileInput || !resultBox || !tbody || !msgBox || !pickBtn || !pasteBtn) {
       log('关键元素缺失，无法启动', 'error');
       return;
     }
@@ -167,7 +183,7 @@
     var panelCol = null;
     var COL_NAMES = { addr:'Addr.(h)', reg:'Reg. Addr.(h)', data:'Data(h)' };
 
-    // ================= CSV 解析（与原版相同） =================
+    // ================= CSV 解析 =================
     function parseCSV(text) {
       if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
       var rows = [], row = [], field = '', inQ = false;
@@ -263,7 +279,7 @@
             + '。行号为 CSV/Excel 中的实际行号。', false);
     }
 
-    // ================= 表头筛选（与原版相同） =================
+    // ================= 表头筛选 =================
     function updateArrowState() {
       arrows.forEach(function(a) {
         a.classList.toggle('active', !!filters[a.dataset.col]);
@@ -339,7 +355,7 @@
     window.addEventListener('scroll', closePanel);
     window.addEventListener('resize', closePanel);
 
-    // ================= 核心业务处理（与原版相同） =================
+    // ================= 核心业务处理 =================
     function processCSV(text, fileName) {
       log('开始处理 CSV，文件名：' + fileName);
       try {
@@ -469,10 +485,96 @@
       };
     }
 
-    // ================= 核心交互：全屏拖拽 + 粘贴 =================
+    // ================= 方式1: showOpenFilePicker（推荐） =================
+    async function pickWithPicker() {
+      log('点击“选择 CSV 文件”按钮');
+      if (!window.showOpenFilePicker) {
+        log('浏览器不支持 showOpenFilePicker，回退到 input', 'warn');
+        fileInput.click();
+        return;
+      }
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          types: [{ description: 'CSV 文件', accept: { 'text/csv': ['.csv'] } }],
+          multiple: false
+        });
+        const file = await handle.getFile();
+        log('通过 showOpenFilePicker 获取文件：' + file.name);
+        handleFile(file);
+      } catch (err) {
+        if (err.name === 'AbortError' || err.message.includes('abort')) {
+          log('用户取消了文件选择', 'warn');
+        } else {
+          log('选择文件出错：' + err.name + ' - ' + err.message, 'error');
+          alert('选择文件失败：' + err.name + ' - ' + err.message);
+        }
+      }
+    }
 
-    // 1. 全屏拖拽：在 document 上监听
-    var dragCounter = 0; // 用于防止 dragleave 误触发
+    // ================= 方式2: 传统 input（备选） =================
+    function pickWithInput() {
+      log('点击“传统选择”备选');
+      fileInput.click();
+      // 启动轮询检测（以防 change 不触发）
+      var pollTimer = setInterval(function() {
+        if (fileInput.files.length > 0) {
+          log('轮询检测到文件：' + fileInput.files[0].name);
+          clearInterval(pollTimer);
+          clearTimeout(timeoutTimer);
+          handleFile(fileInput.files[0]);
+          fileInput.value = '';
+        }
+      }, 300);
+      var timeoutTimer = setTimeout(function() {
+        clearInterval(pollTimer);
+        log('轮询超时，未检测到文件', 'warn');
+      }, 10000);
+    }
+
+    // ================= 方式3: 粘贴（从剪贴板读取文件或文本） =================
+    function handlePaste(e) {
+      log('paste 事件触发');
+      var items = e.clipboardData && e.clipboardData.items;
+      if (!items) {
+        log('剪贴板无 items', 'warn');
+        return;
+      }
+      log('items 数量：' + items.length);
+      // 先尝试找文件
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        if (item.kind === 'file') {
+          var file = item.getAsFile();
+          if (file) {
+            log('从剪贴板获取文件：' + file.name);
+            handleFile(file);
+            return;
+          }
+        }
+      }
+      // 如果没有文件，尝试获取文本（可能用户复制了 CSV 内容）
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        if (item.kind === 'string' && item.type === 'text/plain') {
+          item.getAsString(function(text) {
+            log('从剪贴板获取文本，长度：' + text.length);
+            // 尝试识别为 CSV
+            if (text.trim().length > 0) {
+              // 用 "粘贴内容.csv" 作为文件名
+              var blob = new Blob([text], { type: 'text/csv' });
+              var file = new File([blob], '粘贴内容.csv', { type: 'text/csv' });
+              log('将文本内容转为文件：粘贴内容.csv');
+              handleFile(file);
+            }
+          });
+          return;
+        }
+      }
+      log('剪贴板中没有文件或文本', 'warn');
+    }
+
+    // ================= 方式4: 全屏拖拽 =================
+    var dragCounter = 0;
     document.addEventListener('dragenter', function(e) {
       e.preventDefault();
       e.stopPropagation();
@@ -483,7 +585,6 @@
     document.addEventListener('dragover', function(e) {
       e.preventDefault();
       e.stopPropagation();
-      // 不重复添加类
     });
     document.addEventListener('dragleave', function(e) {
       e.preventDefault();
@@ -505,39 +606,48 @@
       if (files && files.length > 0) {
         handleFile(files[0]);
       } else {
-        log('drop 事件无文件', 'warn');
+        log('drop 无文件', 'warn');
       }
     });
 
-    // 2. 粘贴支持（从文件夹复制文件后粘贴）
-    document.addEventListener('paste', function(e) {
-      var items = e.clipboardData && e.clipboardData.items;
-      log('paste 事件触发，items 数量：' + (items ? items.length : 0));
-      if (!items) return;
-      for (var i = 0; i < items.length; i++) {
-        var item = items[i];
-        if (item.kind === 'file') {
-          var file = item.getAsFile();
-          if (file) {
-            log('从粘贴板获取到文件：' + file.name);
-            handleFile(file);
-            break; // 只处理第一个文件
-          }
-        }
+    // ================= 绑定 UI 事件 =================
+    pickBtn.addEventListener('click', pickWithPicker);
+    pasteBtn.addEventListener('click', function() {
+      // 请求剪贴板权限（仅当浏览器支持）
+      log('点击“从剪贴板粘贴”按钮，尝试读取剪贴板');
+      if (navigator.clipboard && navigator.clipboard.read) {
+        navigator.clipboard.read().then(function(data) {
+          log('clipboard.read 成功，data 长度：' + data.length);
+          // 这里可进一步处理，但标准方式还是用 paste 事件
+          // 直接触发 paste 事件更简单
+          document.dispatchEvent(new Event('paste'));
+        }).catch(function(err) {
+          log('读取剪贴板失败：' + err.message, 'error');
+          alert('无法读取剪贴板，请使用 Ctrl+V 粘贴或拖拽文件。');
+        });
+      } else {
+        // 降级：提示用户使用 Ctrl+V
+        log('浏览器不支持 navigator.clipboard.read', 'warn');
+        alert('请直接按 Ctrl+V 粘贴文件，或使用拖拽。');
       }
     });
 
-    // 3. 备选：点击 dropZone 弹出文件选择框（但仍可能因 change 问题无效，仅作备胎）
-    dropZone.addEventListener('click', function() {
-      log('点击 dropZone，尝试 fileInput.click() (备选)');
-      fileInput.click();
-    });
+    // 监听 paste 事件（全局）
+    document.addEventListener('paste', handlePaste);
+
+    // 备选 input change（轮询已在 pickWithInput 中处理，但这里再绑一次以防万一）
     fileInput.addEventListener('change', function() {
       log('fileInput change 事件（备选）');
       if (fileInput.files.length > 0) {
         handleFile(fileInput.files[0]);
         fileInput.value = '';
       }
+    });
+
+    // 点击 dropZone 也触发选择（用户习惯）
+    dropZone.addEventListener('click', function() {
+      log('点击 dropZone，触发选择');
+      pickWithPicker(); // 优先用 picker
     });
 
     // ================= 视图切换与导出 =================
@@ -558,7 +668,7 @@
       log('导出成功');
     });
 
-    log('所有事件绑定完成，等待用户拖拽或粘贴文件...');
+    log('所有事件绑定完成，等待用户操作...');
   });
 })();
 </script>
