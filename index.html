@@ -3,172 +3,145 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>高通PMIC OCP检查工具（调试版）</title>
+<title>高通PMIC OCP检查工具（深度调试）</title>
 <style>
-  /* （样式与之前完全一致，为节省篇幅此处省略，请沿用之前的样式） */
-  /* 如果您需要完整样式，请告知，我会补全，但为了聚焦问题，此处先只给出核心逻辑 */
+  /* 样式同之前，省略以节省篇幅，您可保留原有样式 */
+  body { font-family: sans-serif; padding: 20px; }
+  #dropZone { border: 2px dashed #2D5F8A; padding: 40px; text-align: center; cursor: pointer; }
+  #dropZone.dragover { background: #eaf2f9; }
+  #fileInput { display: none; }
+  #log { margin-top: 20px; background: #f4f4f4; padding: 10px; border-radius: 4px; max-height: 300px; overflow: auto; font-size: 12px; white-space: pre-wrap; }
 </style>
 </head>
 <body>
-<!-- 容器结构与之前相同，为节省篇幅省略，关键是有 dropZone 和 fileInput 以及 result 区域 -->
-<div class="container">
-  <h1>高通PMIC OCP检查工具（调试版）</h1>
-  <div id="dropZone" style="border:2px dashed #2D5F8A;padding:46px 20px;text-align:center;cursor:pointer;">
-    <div style="font-size:17px;font-weight:600;">将 SPMI.CSV 文件拖拽到此处</div>
-    <div style="font-size:13px;color:#6B7280;">或点击此处选择文件</div>
-  </div>
-  <input type="file" id="fileInput" accept=".csv,text/csv" style="display:none;">
-  <div id="result" style="display:none;">
-    <!-- 统计卡片、表格等结构与之前一致，为节省篇幅省略 -->
-    <!-- 但必须保留 id="tbody" 和 id="msg" 等 -->
-  </div>
-  <div id="msg" style="margin-top:14px;font-size:13px;color:#6B7280;"></div>
-</div>
+<div id="dropZone">点击或拖拽选择 CSV 文件</div>
+<input type="file" id="fileInput" accept=".csv,text/csv">
+<div id="log"></div>
 
 <script>
 (function() {
+  // 日志函数，同时输出到控制台和页面
+  function log(msg, type) {
+    var el = document.getElementById('log');
+    var time = new Date().toLocaleTimeString();
+    var prefix = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '✅';
+    var line = '[' + time + '] ' + prefix + ' ' + msg;
+    console.log(line);
+    if (el) el.textContent += line + '\n';
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
-    console.log('✅ DOM 加载完成，开始初始化...');
+    log('DOM 加载完成，开始初始化...');
 
     var dropZone = document.getElementById('dropZone');
     var fileInput = document.getElementById('fileInput');
-    var resultBox = document.getElementById('result');
-    var tbody = document.getElementById('tbody');
-    var msgBox = document.getElementById('msg');
+    if (!dropZone) { log('找不到 dropZone 元素', 'error'); return; }
+    if (!fileInput) { log('找不到 fileInput 元素', 'error'); return; }
+    log('元素获取成功');
 
-    if (!dropZone) console.error('❌ 找不到 dropZone 元素');
-    if (!fileInput) console.error('❌ 找不到 fileInput 元素');
-    if (!resultBox) console.error('❌ 找不到 result 元素');
-    if (!tbody) console.error('❌ 找不到 tbody 元素');
-    if (!msgBox) console.error('❌ 找不到 msg 元素');
-
-    // ---------- 辅助函数 ----------
-    function showMsg(t, isErr) {
-      if (msgBox) {
-        msgBox.textContent = t;
-        msgBox.className = isErr ? 'err' : '';
-      }
-      console.log((isErr ? '❌ ' : 'ℹ️ ') + t);
-    }
-
-    // ---------- 文件处理核心 ----------
+    // ---------- 文件处理 ----------
     function handleFile(file) {
-      console.log('📁 handleFile 被调用，文件名：', file ? file.name : 'null', '大小：', file ? file.size : 'N/A');
-      if (!file) {
-        showMsg('未获取到文件对象', true);
-        return;
-      }
+      log('handleFile 被调用，文件名：' + file.name + '，大小：' + file.size);
       if (!/\.csv$/i.test(file.name)) {
-        alert('请拖入 .csv 格式的文件。');
-        showMsg('文件扩展名不符合 .csv', true);
+        log('扩展名不符合 .csv，弹出警告', 'warn');
+        alert('请选择 .csv 文件');
         return;
       }
       if (file.size > 50 * 1024 * 1024) {
-        alert('文件过大（超过 50MB）');
-        showMsg('文件过大', true);
+        log('文件过大', 'warn');
+        alert('文件超过50MB');
         return;
       }
 
       var reader = new FileReader();
       reader.readAsArrayBuffer(file);
-      console.log('⏳ 开始读取文件（ArrayBuffer）...');
+      log('开始读取文件（ArrayBuffer）...');
 
       reader.onload = function(e) {
-        console.log('✅ 文件读取成功，数据长度：', e.target.result.byteLength);
+        log('文件读取成功，数据长度：' + e.target.result.byteLength);
         try {
           var buffer = e.target.result;
           var uint8Array = new Uint8Array(buffer);
-          // 检测 BOM
           var hasBOM = (uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array[2] === 0xBF);
           var offset = hasBOM ? 3 : 0;
-          console.log('🔍 BOM 检测：', hasBOM ? '有' : '无', '，偏移量：', offset);
+          log('BOM检测：' + (hasBOM ? '有' : '无') + '，偏移量：' + offset);
 
           var dataView = uint8Array.slice(offset);
-          // 尝试 UTF-8
           var decoder = new TextDecoder('UTF-8', { fatal: false });
           var text = decoder.decode(dataView);
-          console.log('📝 UTF-8 解码后长度：', text.length, '，是否包含替换字符 �：', text.includes('\uFFFD'));
+          log('UTF-8解码后长度：' + text.length + '，包含替换字符 �：' + text.includes('\uFFFD'));
 
           if (text.includes('\uFFFD')) {
-            console.log('🔄 尝试 GBK 解码...');
+            log('尝试 GBK 解码...');
             var gbkDecoder = new TextDecoder('GBK', { fatal: false });
             text = gbkDecoder.decode(dataView);
-            console.log('✅ GBK 解码完成，长度：', text.length);
+            log('GBK解码完成，长度：' + text.length);
           }
 
-          // 调用主逻辑
-          console.log('🚀 调用 process 函数...');
-          processCSV(text, file.name);
+          // 预览前200字符
+          log('文件内容预览（前200字符）：\n' + text.substring(0, 200));
+          alert('解码成功！请查看控制台和页面日志。');
         } catch (err) {
-          console.error('❌ 解码或处理过程异常：', err);
-          alert('文件处理出错：' + err.message);
+          log('处理过程异常：' + err.message, 'error');
+          alert('处理失败：' + err.message);
         }
       };
 
       reader.onerror = function(e) {
-        console.error('❌ FileReader 错误：', e);
-        alert('文件读取失败，请重试。');
+        log('FileReader 错误：' + e, 'error');
+        alert('文件读取失败');
       };
-    }
-
-    // ---------- CSV 解析与业务逻辑（精简版，仅演示功能） ----------
-    function processCSV(text, fileName) {
-      console.log('📄 processCSV 被调用，文本长度：', text.length);
-      // 此处应包含您原有的 parseCSV、列定位、遍历、渲染等逻辑
-      // 为了快速验证，我们简化为弹窗显示前 100 个字符
-      alert('文件内容预览（前100字符）：\n' + text.substring(0, 100));
-      // 实际项目中这里放您原来的完整 process 函数
-      // 但为了排查，先这样测试
     }
 
     // ---------- 事件绑定 ----------
     dropZone.addEventListener('click', function() {
-      console.log('🖱️ dropZone 被点击，触发 fileInput.click()');
+      log('dropZone 被点击，触发 fileInput.click()');
       fileInput.click();
     });
 
     fileInput.addEventListener('change', function() {
-      console.log('📎 fileInput change 事件触发');
-      if (fileInput.files.length > 0) {
-        handleFile(fileInput.files[0]);
+      log('fileInput change 事件触发！');
+      var files = fileInput.files;
+      log('files 对象长度：' + files.length);
+      if (files.length > 0) {
+        log('选择了文件：' + files[0].name);
+        handleFile(files[0]);
       } else {
-        console.warn('没有选择文件');
+        log('未选择任何文件（可能取消了选择）', 'warn');
       }
-      fileInput.value = ''; // 重置
+      fileInput.value = ''; // 重置以便重复选择
     });
 
     // 拖拽事件
-    ['dragenter', 'dragover'].forEach(function(ev) {
-      dropZone.addEventListener(ev, function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.add('dragover');
-        console.log('🔄 拖拽进入/移动');
-      });
+    dropZone.addEventListener('dragenter', function(e) {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+      log('dragenter');
     });
-
-    ['dragleave', 'drop'].forEach(function(ev) {
-      dropZone.addEventListener(ev, function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.remove('dragover');
-        console.log('🔄 拖拽离开/放下');
-      });
+    dropZone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
     });
-
+    dropZone.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      log('dragleave');
+    });
     dropZone.addEventListener('drop', function(e) {
       e.preventDefault();
       dropZone.classList.remove('dragover');
-      var files = e.dataTransfer && e.dataTransfer.files;
-      console.log('📂 drop 事件，files 对象：', files);
-      if (files && files.length > 0) {
+      log('drop 事件触发');
+      var files = e.dataTransfer.files;
+      log('拖入文件数：' + files.length);
+      if (files.length > 0) {
+        log('拖入文件：' + files[0].name);
         handleFile(files[0]);
       } else {
-        showMsg('拖拽未包含文件', true);
+        log('拖入无效', 'warn');
       }
     });
 
-    console.log('✅ 所有事件绑定完成，等待用户操作...');
+    log('所有事件绑定完成，等待用户操作...');
   });
 })();
 </script>
