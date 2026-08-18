@@ -1,149 +1,16 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>高通PMIC OCP检查工具（深度调试）</title>
-<style>
-  /* 样式同之前，省略以节省篇幅，您可保留原有样式 */
-  body { font-family: sans-serif; padding: 20px; }
-  #dropZone { border: 2px dashed #2D5F8A; padding: 40px; text-align: center; cursor: pointer; }
-  #dropZone.dragover { background: #eaf2f9; }
-  #fileInput { display: none; }
-  #log { margin-top: 20px; background: #f4f4f4; padding: 10px; border-radius: 4px; max-height: 300px; overflow: auto; font-size: 12px; white-space: pre-wrap; }
-</style>
-</head>
+<html>
+<head><meta charset="UTF-8"><title>极简测试</title></head>
 <body>
-<div id="dropZone">点击或拖拽选择 CSV 文件</div>
-<input type="file" id="fileInput" accept=".csv,text/csv">
-<div id="log"></div>
-
+<button id="btn">选择文件</button>
+<input type="file" id="fileInput" accept=".csv" style="display:none;">
 <script>
-(function() {
-  // 日志函数，同时输出到控制台和页面
-  function log(msg, type) {
-    var el = document.getElementById('log');
-    var time = new Date().toLocaleTimeString();
-    var prefix = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '✅';
-    var line = '[' + time + '] ' + prefix + ' ' + msg;
-    console.log(line);
-    if (el) el.textContent += line + '\n';
-  }
-
-  document.addEventListener('DOMContentLoaded', function() {
-    log('DOM 加载完成，开始初始化...');
-
-    var dropZone = document.getElementById('dropZone');
-    var fileInput = document.getElementById('fileInput');
-    if (!dropZone) { log('找不到 dropZone 元素', 'error'); return; }
-    if (!fileInput) { log('找不到 fileInput 元素', 'error'); return; }
-    log('元素获取成功');
-
-    // ---------- 文件处理 ----------
-    function handleFile(file) {
-      log('handleFile 被调用，文件名：' + file.name + '，大小：' + file.size);
-      if (!/\.csv$/i.test(file.name)) {
-        log('扩展名不符合 .csv，弹出警告', 'warn');
-        alert('请选择 .csv 文件');
-        return;
-      }
-      if (file.size > 50 * 1024 * 1024) {
-        log('文件过大', 'warn');
-        alert('文件超过50MB');
-        return;
-      }
-
-      var reader = new FileReader();
-      reader.readAsArrayBuffer(file);
-      log('开始读取文件（ArrayBuffer）...');
-
-      reader.onload = function(e) {
-        log('文件读取成功，数据长度：' + e.target.result.byteLength);
-        try {
-          var buffer = e.target.result;
-          var uint8Array = new Uint8Array(buffer);
-          var hasBOM = (uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array[2] === 0xBF);
-          var offset = hasBOM ? 3 : 0;
-          log('BOM检测：' + (hasBOM ? '有' : '无') + '，偏移量：' + offset);
-
-          var dataView = uint8Array.slice(offset);
-          var decoder = new TextDecoder('UTF-8', { fatal: false });
-          var text = decoder.decode(dataView);
-          log('UTF-8解码后长度：' + text.length + '，包含替换字符 �：' + text.includes('\uFFFD'));
-
-          if (text.includes('\uFFFD')) {
-            log('尝试 GBK 解码...');
-            var gbkDecoder = new TextDecoder('GBK', { fatal: false });
-            text = gbkDecoder.decode(dataView);
-            log('GBK解码完成，长度：' + text.length);
-          }
-
-          // 预览前200字符
-          log('文件内容预览（前200字符）：\n' + text.substring(0, 200));
-          alert('解码成功！请查看控制台和页面日志。');
-        } catch (err) {
-          log('处理过程异常：' + err.message, 'error');
-          alert('处理失败：' + err.message);
-        }
-      };
-
-      reader.onerror = function(e) {
-        log('FileReader 错误：' + e, 'error');
-        alert('文件读取失败');
-      };
-    }
-
-    // ---------- 事件绑定 ----------
-    dropZone.addEventListener('click', function() {
-      log('dropZone 被点击，触发 fileInput.click()');
-      fileInput.click();
-    });
-
-    fileInput.addEventListener('change', function() {
-      log('fileInput change 事件触发！');
-      var files = fileInput.files;
-      log('files 对象长度：' + files.length);
-      if (files.length > 0) {
-        log('选择了文件：' + files[0].name);
-        handleFile(files[0]);
-      } else {
-        log('未选择任何文件（可能取消了选择）', 'warn');
-      }
-      fileInput.value = ''; // 重置以便重复选择
-    });
-
-    // 拖拽事件
-    dropZone.addEventListener('dragenter', function(e) {
-      e.preventDefault();
-      dropZone.classList.add('dragover');
-      log('dragenter');
-    });
-    dropZone.addEventListener('dragover', function(e) {
-      e.preventDefault();
-      dropZone.classList.add('dragover');
-    });
-    dropZone.addEventListener('dragleave', function(e) {
-      e.preventDefault();
-      dropZone.classList.remove('dragover');
-      log('dragleave');
-    });
-    dropZone.addEventListener('drop', function(e) {
-      e.preventDefault();
-      dropZone.classList.remove('dragover');
-      log('drop 事件触发');
-      var files = e.dataTransfer.files;
-      log('拖入文件数：' + files.length);
-      if (files.length > 0) {
-        log('拖入文件：' + files[0].name);
-        handleFile(files[0]);
-      } else {
-        log('拖入无效', 'warn');
-      }
-    });
-
-    log('所有事件绑定完成，等待用户操作...');
-  });
-})();
+document.getElementById('btn').addEventListener('click', function() {
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  alert('change 事件触发了！文件名：' + this.files[0].name);
+});
 </script>
 </body>
 </html>
