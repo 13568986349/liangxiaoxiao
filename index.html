@@ -3,516 +3,173 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>高通PMIC OCP检查工具</title>
+<title>高通PMIC OCP检查工具（调试版）</title>
 <style>
-  /* ================= 全局样式变量与基础样式 ================= */
-  :root{ --accent:#2D5F8A; --accent-dark:#1C3A5E; --red:#D93025; --red-bg:#FDECEA;
-         --gray:#6B7280; --border:#D9DEE4; }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  body{font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif; background:#F5F7FA; color:#2E3440; padding:24px 16px;}
-  .container{max-width:1100px; margin:0 auto;}
-  h1{font-size:22px; color:var(--accent-dark); margin-bottom:6px;}
-  .sub{color:var(--gray); font-size:13px; margin-bottom:20px; line-height:1.7;}
-
-  /* ================= 拖拽区样式 ================= */
-  #dropZone{border:2px dashed var(--accent); border-radius:10px; background:#fff; padding:46px 20px;
-            text-align:center; cursor:pointer; transition:all .15s;}
-  #dropZone.dragover{background:#EAF2F9; border-color:var(--accent-dark); box-shadow:0 0 0 4px rgba(45,95,138,.12);}
-  #dropZone .big{font-size:17px; font-weight:600; margin-bottom:8px; color:var(--accent-dark);}
-  #dropZone .small{font-size:13px; color:var(--gray);}
-  #fileInput{display:none;}
-
-  /* ================= 统计卡片样式 ================= */
-  .cards{display:flex; gap:14px; margin:20px 0 6px; flex-wrap:wrap;}
-  .card{flex:1; min-width:170px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 18px;}
-  .card .num{font-size:26px; font-weight:700; color:var(--accent);}
-  .card.hit .num{color:var(--red);}
-  .card .lbl{font-size:12px; color:var(--gray); margin-top:4px;}
-  .dist{margin:10px 0 0; font-size:13px; color:#374151; line-height:1.8;}
-
-  /* ================= 工具栏（视图切换/导出）样式 ================= */
-  .toolbar{display:flex; gap:10px; align-items:center; margin:18px 0 10px; flex-wrap:wrap;}
-  .btn{border:1px solid var(--accent); background:#fff; color:var(--accent); padding:7px 16px;
-       border-radius:6px; font-size:13px; cursor:pointer; transition:all .15s;}
-  .btn:hover{background:#EAF2F9;}
-  .btn.active{background:var(--accent); color:#fff;}
-  .btn.export{border-color:#59A14F; color:#3D7A34; margin-left:auto;}
-  .btn.export:hover{background:#EEF7EC;}
-
-  /* ================= 表头下拉筛选样式（多选模式，替代原表格上方独立筛选框） ================= */
-  .th-wrap{display:flex; align-items:center; gap:6px;}
-  /* 表头中的下拉箭头按钮 */
-  .farrow{cursor:pointer; font-size:10px; padding:2px 5px; border-radius:4px; opacity:.75; user-select:none;}
-  .farrow:hover{background:rgba(255,255,255,.22); opacity:1;}
-  /* 筛选生效时箭头高亮提示 */
-  .farrow.active{color:#FFD54F; opacity:1; font-weight:700;}
-  /* 下拉筛选面板（fixed 定位挂载在 body 上，避免被表格滚动容器裁剪） */
-  .filter-panel{position:fixed; z-index:999; background:#fff; border:1px solid var(--border);
-                border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.14); min-width:210px; max-width:320px;
-                color:#2E3440; font-weight:400;}
-  .filter-panel .fp-head{display:flex; gap:8px; align-items:center; padding:8px 12px; border-bottom:1px solid #EEF1F4;}
-  .filter-panel .fp-title{font-size:13px; font-weight:600; flex:1; white-space:nowrap;}
-  .filter-panel .fp-btn{border:1px solid var(--border); background:#fff; color:var(--accent); border-radius:5px;
-                        font-size:12px; padding:3px 9px; cursor:pointer;}
-  .filter-panel .fp-btn:hover{background:#EAF2F9;}
-  .filter-panel .fp-list{max-height:260px; overflow:auto; padding:6px 4px;}
-  .filter-panel label.fp-item{display:flex; align-items:center; gap:8px; padding:5px 10px; font-size:13px;
-                              cursor:pointer; border-radius:5px; white-space:nowrap;}
-  .filter-panel label.fp-item:hover{background:#F2F6FA;}
-  .filter-panel .fp-count{color:var(--gray); font-size:12px; margin-left:auto; padding-left:12px;}
-
-  /* ================= 数据表格样式 ================= */
-  .tablewrap{max-height:62vh; overflow:auto; border-radius:8px; border:1px solid var(--border); background:#fff;}
-  table{width:100%; border-collapse:collapse; font-size:13px;}
-  th{background:var(--accent); color:#fff; padding:9px 12px; text-align:left; font-weight:600;
-     position:sticky; top:0; z-index:1; white-space:nowrap;}
-  td{padding:7px 12px; border-bottom:1px solid #EEF1F4; white-space:nowrap;}
-  tbody tr:nth-child(even) td{background:#F8FAFC;}
-  /* 命中行标红样式 */
-  tbody tr.hit td{background:var(--red-bg); color:var(--red); font-weight:600;}
-  /* 二进制展示中 bit5 位的高亮样式 */
-  .b5{color:var(--red); font-weight:700; text-decoration:underline;}
-  tr.hit .b5{color:#8B1A10;}
-
-  /* ================= 消息与页脚样式 ================= */
-  #msg{margin-top:14px; font-size:13px; color:var(--gray); line-height:1.7;}
-  #msg.err{color:var(--red); font-weight:600;}
-  .footer{margin-top:26px; font-size:12px; color:#9AA3AF; text-align:center;}
-  code{background:#EEF1F4; padding:1px 5px; border-radius:4px; font-size:12px;}
+  /* （样式与之前完全一致，为节省篇幅此处省略，请沿用之前的样式） */
+  /* 如果您需要完整样式，请告知，我会补全，但为了聚焦问题，此处先只给出核心逻辑 */
 </style>
 </head>
 <body>
+<!-- 容器结构与之前相同，为节省篇幅省略，关键是有 dropZone 和 fileInput 以及 result 区域 -->
 <div class="container">
-  <h1>高通PMIC OCP检查工具</h1>
-  <div class="sub">
-    功能：筛选 <code>Reg. Addr.(h)</code> 列中 <b>0X**08</b> 寄存器，判断 <b>Bit(5)</b> 是否为 1。
+  <h1>高通PMIC OCP检查工具（调试版）</h1>
+  <div id="dropZone" style="border:2px dashed #2D5F8A;padding:46px 20px;text-align:center;cursor:pointer;">
+    <div style="font-size:17px;font-weight:600;">将 SPMI.CSV 文件拖拽到此处</div>
+    <div style="font-size:13px;color:#6B7280;">或点击此处选择文件</div>
   </div>
-
-  <!-- 拖拽 / 点击选择文件区域 -->
-  <div id="dropZone">
-    <div class="big">将 SPMI.CSV 文件拖拽到此处</div>
-    <div class="small">或点击此处选择文件（支持 .csv 文件格式）</div>
+  <input type="file" id="fileInput" accept=".csv,text/csv" style="display:none;">
+  <div id="result" style="display:none;">
+    <!-- 统计卡片、表格等结构与之前一致，为节省篇幅省略 -->
+    <!-- 但必须保留 id="tbody" 和 id="msg" 等 -->
   </div>
-  <input type="file" id="fileInput" accept=".csv,text/csv">
-
-  <!-- 结果展示区域（文件解析成功后显示） -->
-  <div id="result" style="display:none">
-
-    <!-- 统计卡片：总行数 / **08 地址行数 / Bit5=1 命中行数 -->
-    <div class="cards">
-      <div class="card"><div class="num" id="numTotal">0</div><div class="lbl">数据总行数</div></div>
-      <div class="card"><div class="num" id="numAddr08">0</div><div class="lbl">符合 0X**08 格式的地址行</div></div>
-      <div class="card hit"><div class="num" id="numHit">0</div><div class="lbl">Bit(5) = 1 命中行</div></div>
-    </div>
-
-    <!-- 分布展示区：命中行的 Addr.(h) 与 Reg. Addr.(h) 分布（按需求修改） -->
-    <div class="dist" id="dist"></div>
-
-    <!-- 视图切换工具栏 + 导出按钮 -->
-    <div class="toolbar">
-      <button class="btn active" id="tabHits">仅看命中行</button>
-      <button class="btn" id="tabAll">全部 **08 地址行</button>
-      <button class="btn export" id="btnExport">导出命中清单 (CSV)</button>
-    </div>
-
-    <!-- 数据表格：行号 / Addr.(h) / Reg. Addr.(h) / Data(h) / 低字节二进制（已移除 Bit(5) 列）
-         筛选功能直接集成在表头：Addr.(h)、Reg. Addr.(h)、Data(h) 三列表头带 ▼ 下拉箭头，
-         点击弹出多选筛选面板（原表格上方的独立筛选框已移除） -->
-    <div class="tablewrap">
-      <table>
-        <thead>
-          <tr>
-            <th style="width:90px">行号</th>
-            <th style="width:150px"><div class="th-wrap">Addr.(h)<span class="farrow" data-col="addr" title="下拉筛选（多选）">&#9660;</span></div></th>
-            <th style="width:190px"><div class="th-wrap">Reg. Addr.(h)<span class="farrow" data-col="reg" title="下拉筛选（多选）">&#9660;</span></div></th>
-            <th style="width:170px"><div class="th-wrap">Data(h)<span class="farrow" data-col="data" title="下拉筛选（多选）">&#9660;</span></div></th>
-            <th>低字节二进制（b7~b0）</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
-
-    <!-- 状态/提示消息 -->
-    <div id="msg"></div>
-  </div>
-
-  <div class="footer">纯前端处理 · 数据不离开本机 · 关闭页面后自动清空</div>
+  <div id="msg" style="margin-top:14px;font-size:13px;color:#6B7280;"></div>
 </div>
 
 <script>
-/* =====================================================================
- * 整合修改版： 
- *   - 解决 GitHub Pages 部署后无法读取文件的问题（DOMContentLoaded）
- *   - 增强编码兼容性：自动检测 UTF-8 / GBK（替代硬编码 readAsText）
- *   - 添加文件大小限制（50MB）
- * ===================================================================== */
-(function(){
-  // 等待 DOM 渲染完成后再执行所有逻辑
+(function() {
   document.addEventListener('DOMContentLoaded', function() {
+    console.log('✅ DOM 加载完成，开始初始化...');
 
-    /* ---------- 页面元素引用 ---------- */
-    var dropZone  = document.getElementById('dropZone');
+    var dropZone = document.getElementById('dropZone');
     var fileInput = document.getElementById('fileInput');
     var resultBox = document.getElementById('result');
-    var tbody     = document.getElementById('tbody');
-    var msgBox    = document.getElementById('msg');
-    var tabHits   = document.getElementById('tabHits');
-    var tabAll    = document.getElementById('tabAll');
-    var btnExport = document.getElementById('btnExport');
-    var arrows    = document.querySelectorAll('.farrow');
+    var tbody = document.getElementById('tbody');
+    var msgBox = document.getElementById('msg');
 
-    /* ---------- 全局数据 ---------- */
-    var all08 = [];
-    var hits = [];
-    var curFile = '';
-    var curTab = 'hits';
-    var filters = { addr:null, reg:null, data:null };
-    var panel = null;
-    var panelCol = null;
-    var COL_NAMES = { addr:'Addr.(h)', reg:'Reg. Addr.(h)', data:'Data(h)' };
+    if (!dropZone) console.error('❌ 找不到 dropZone 元素');
+    if (!fileInput) console.error('❌ 找不到 fileInput 元素');
+    if (!resultBox) console.error('❌ 找不到 result 元素');
+    if (!tbody) console.error('❌ 找不到 tbody 元素');
+    if (!msgBox) console.error('❌ 找不到 msg 元素');
 
-    /* ---------- CSV 解析（支持引号包裹、逗号分隔、CRLF） ---------- */
-    function parseCSV(text){
-      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-      var rows = [], row = [], field = '', inQ = false;
-      for (var i = 0; i < text.length; i++){
-        var c = text[i];
-        if (inQ){
-          if (c === '"'){
-            if (text[i+1] === '"'){ field += '"'; i++; }
-            else inQ = false;
-          } else field += c;
-        } else {
-          if (c === '"') inQ = true;
-          else if (c === ','){ row.push(field); field = ''; }
-          else if (c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
-          else if (c !== '\r') field += c;
-        }
+    // ---------- 辅助函数 ----------
+    function showMsg(t, isErr) {
+      if (msgBox) {
+        msgBox.textContent = t;
+        msgBox.className = isErr ? 'err' : '';
       }
-      if (field.length > 0 || row.length > 0){ row.push(field); rows.push(row); }
-      return rows;
+      console.log((isErr ? '❌ ' : 'ℹ️ ') + t);
     }
 
-    /* ---------- 单元格清洗 ---------- */
-    function cleanCell(v){
-      if (v === null || v === undefined) return '';
-      var s = String(v).trim();
-      if (s.charAt(0) === '=') s = s.slice(1).trim();
-      if (s.length >= 2 && s.charAt(0) === '"' && s.charAt(s.length-1) === '"'){
-        s = s.slice(1, -1);
-      } else {
-        s = s.replace(/"/g, '');
-      }
-      return s.trim();
-    }
-
-    /* ---------- 消息提示 ---------- */
-    function showMsg(t, isErr){
-      msgBox.textContent = t;
-      msgBox.className = isErr ? 'err' : '';
-    }
-
-    /* ---------- HTML 转义 ---------- */
-    function escHtml(s){
-      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-
-    /* ---------- 低字节二进制展示 ---------- */
-    function binHtml(hexStr){
-      var h = hexStr.length % 2 ? '0' + hexStr : hexStr;
-      var lastByte = h.slice(-2);
-      var n = parseInt(lastByte, 16);
-      var bin = ('00000000' + n.toString(2)).slice(-8);
-      var out = '';
-      for (var i = 0; i < 8; i++){
-        if (i === 2) out += '<span class="b5">' + bin[i] + '</span>';
-        else out += bin[i];
-      }
-      return '<code>' + out + '</code>';
-    }
-
-    /* ---------- 当前视图对应的数据源 ---------- */
-    function currentList(){ return (curTab === 'all') ? all08 : hits; }
-
-    /* ---------- 取行在某列的筛选键值 ---------- */
-    function fval(r, col){
-      var v = String(r[col]);
-      return v === '' ? '(空)' : v;
-    }
-
-    /* ---------- 筛选匹配 ---------- */
-    function matchFilters(r){
-      if (filters.addr && !filters.addr.has(fval(r,'addr'))) return false;
-      if (filters.reg  && !filters.reg.has(fval(r,'reg')))  return false;
-      if (filters.data && !filters.data.has(fval(r,'data'))) return false;
-      return true;
-    }
-
-    /* ---------- 表格渲染 ---------- */
-    function render(tab){
-      curTab = tab;
-      var list = (tab === 'all') ? all08 : hits;
-      var shown = list.filter(matchFilters);
-      var html = '';
-      for (var i = 0; i < shown.length; i++){
-        var r = shown[i];
-        html += '<tr' + (r.bit5 ? ' class="hit"' : '') + '>'
-              + '<td>' + r.excelRow + '</td>'
-              + '<td>' + r.addr + '</td>'
-              + '<td>' + r.reg + '</td>'
-              + '<td>' + r.data + '</td>'
-              + '<td>' + binHtml(r.hexStr) + '</td>'
-              + '</tr>';
-      }
-      tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:#6B7280;padding:20px">无数据</td></tr>';
-      tabHits.className = 'btn' + (tab !== 'all' ? ' active' : '');
-      tabAll.className  = 'btn' + (tab === 'all' ? ' active' : '');
-      var viewName = (tab === 'all') ? '全部 **08 地址行' : 'Bit(5)=1 命中行';
-      var filterOn = !!(filters.addr || filters.reg || filters.data);
-      showMsg('当前显示：' + viewName + ' ' + shown.length + (filterOn ? (' / ' + list.length) : '') + ' 条'
-            + (filterOn ? '（已应用表头下拉筛选，支持多选；点击表头 ▼ 可修改）' : '')
-            + '。行号为 CSV/Excel 中的实际行号。', false);
-    }
-
-    /* ================= 表头下拉筛选（多选模式） ================= */
-    function updateArrowState(){
-      arrows.forEach(function(a){
-        a.classList.toggle('active', !!filters[a.dataset.col]);
-      });
-    }
-
-    function closePanel(){
-      if (panel){ panel.remove(); panel = null; panelCol = null; }
-    }
-
-    function openPanel(col, anchor){
-      closePanel();
-      var list = currentList();
-      var cnt = {};
-      list.forEach(function(r){
-        var v = fval(r, col);
-        cnt[v] = (cnt[v] || 0) + 1;
-      });
-      var keys = Object.keys(cnt).sort(function(a,b){ return cnt[b]-cnt[a] || (a<b?-1:1); });
-      var sel = filters[col];
-
-      panel = document.createElement('div');
-      panel.className = 'filter-panel';
-      var head = '<div class="fp-head"><span class="fp-title">' + COL_NAMES[col] + ' 筛选</span>'
-               + '<button class="fp-btn" data-act="all">全选</button>'
-               + '<button class="fp-btn" data-act="none">清空</button></div>';
-      var items = '';
-      keys.forEach(function(k){
-        var checked = (!sel || sel.has(k)) ? ' checked' : '';
-        items += '<label class="fp-item"><input type="checkbox" value="' + escHtml(k) + '"' + checked + '>'
-               + '<span>' + escHtml(k) + '</span><span class="fp-count">' + cnt[k] + '</span></label>';
-      });
-      panel.innerHTML = head + '<div class="fp-list">'
-                      + (items || '<div style="padding:10px 12px;color:#6B7280;font-size:13px">无数据</div>')
-                      + '</div>';
-      document.body.appendChild(panel);
-
-      var rect = anchor.getBoundingClientRect();
-      var left = Math.min(rect.left, window.innerWidth - panel.offsetWidth - 8);
-      panel.style.left = Math.max(8, left) + 'px';
-      panel.style.top  = (rect.bottom + 4) + 'px';
-
-      panel.querySelectorAll('.fp-btn').forEach(function(b){
-        b.addEventListener('click', function(){
-          panel.querySelectorAll('input[type=checkbox]').forEach(function(cb){
-            cb.checked = (b.dataset.act === 'all');
-          });
-          applyPanel(col);
-        });
-      });
-      panel.querySelectorAll('input[type=checkbox]').forEach(function(cb){
-        cb.addEventListener('change', function(){ applyPanel(col); });
-      });
-      panelCol = col;
-    }
-
-    function applyPanel(col){
-      var boxes = panel.querySelectorAll('input[type=checkbox]');
-      var chosen = [];
-      boxes.forEach(function(cb){ if (cb.checked) chosen.push(cb.value); });
-      if (chosen.length === 0 || chosen.length === boxes.length){ filters[col] = null; }
-      else { filters[col] = new Set(chosen); }
-      updateArrowState();
-      render(curTab);
-    }
-
-    arrows.forEach(function(a){
-      a.addEventListener('click', function(e){
-        e.stopPropagation();
-        var col = a.dataset.col;
-        if (panel && panelCol === col){ closePanel(); }
-        else { openPanel(col, a); }
-      });
-    });
-    document.addEventListener('mousedown', function(e){
-      if (panel && !panel.contains(e.target)) closePanel();
-    });
-    document.querySelector('.tablewrap').addEventListener('scroll', closePanel);
-    window.addEventListener('scroll', closePanel);
-    window.addEventListener('resize', closePanel);
-
-    /* ================= 核心处理流程（编码兼容升级） ================= */
-    function process(text, fileName){
-      curFile = fileName;
-      var rows = parseCSV(text);
-
-      var headerIdx = -1, addrCol = -1, regCol = -1, dataCol = -1;
-      for (var r = 0; r < Math.min(rows.length, 20); r++){
-        var norm = rows[r].map(function(c){ return cleanCell(c).toLowerCase().replace(/\s+/g, ''); });
-        var ai = norm.indexOf('addr.(h)');
-        var ri = norm.indexOf('reg.addr.(h)');
-        var di = norm.indexOf('data(h)');
-        if (ri >= 0 && di >= 0){ headerIdx = r; addrCol = ai; regCol = ri; dataCol = di; break; }
-      }
-      if (headerIdx < 0){
-        resultBox.style.display = 'none';
-        alert('未在文件中找到 "Reg. Addr.(h)" 与 "Data(h)" 列，请检查 CSV 格式。');
+    // ---------- 文件处理核心 ----------
+    function handleFile(file) {
+      console.log('📁 handleFile 被调用，文件名：', file ? file.name : 'null', '大小：', file ? file.size : 'N/A');
+      if (!file) {
+        showMsg('未获取到文件对象', true);
         return;
       }
-
-      all08 = []; hits = [];
-      var totalData = 0, badHex = 0;
-      for (var i = headerIdx + 1; i < rows.length; i++){
-        var raw = rows[i];
-        var isEmpty = raw.every(function(c){ return cleanCell(c) === ''; });
-        if (isEmpty) continue;
-        totalData++;
-        var addr = (addrCol >= 0) ? cleanCell(raw[addrCol]) : '';
-        var reg  = cleanCell(raw[regCol]);
-        var data = cleanCell(raw[dataCol]);
-        if (!/08$/i.test(reg)) continue;
-        var hexStr = data.replace(/^0x/i, '').replace(/\s+/g, '');
-        var rec = { excelRow: i + 1, addr: addr, reg: reg, data: data, hexStr: hexStr, bit5: false, valid: false };
-        if (/^[0-9a-fA-F]+$/.test(hexStr)){
-          try {
-            var val = BigInt('0x' + hexStr);
-            rec.bit5 = ((val >> BigInt(5)) & BigInt(1)) === BigInt(1);
-            rec.valid = true;
-          } catch(e) { rec.valid = false; }
-        }
-        if (!rec.valid){ badHex++; all08.push(rec); continue; }
-        all08.push(rec);
-        if (rec.bit5) hits.push(rec);
-      }
-
-      document.getElementById('numTotal').textContent  = totalData;
-      document.getElementById('numAddr08').textContent = all08.length;
-      document.getElementById('numHit').textContent    = hits.length;
-
-      var addrMap = {}, regMap = {};
-      hits.forEach(function(h){
-        var ka = (h.addr || '(空)').toUpperCase();
-        var kr = (h.reg  || '(空)').toUpperCase();
-        addrMap[ka] = (addrMap[ka] || 0) + 1;
-        regMap[kr]  = (regMap[kr]  || 0) + 1;
-      });
-      function sortKeys(m){
-        return Object.keys(m).sort(function(a,b){ return m[b]-m[a] || (a<b?-1:1); });
-      }
-      var distHtml = '文件：' + fileName + '<br>';
-      distHtml += '符合条件（Bit5=1）行的 <b>Addr.(h)</b> 分布：';
-      var ak = sortKeys(addrMap);
-      if (ak.length === 0) distHtml += '无';
-      ak.forEach(function(k){ distHtml += ' <code>' + k + '</code> × ' + addrMap[k] + '　'; });
-      distHtml += '<br>符合条件（Bit5=1）行的 <b>Reg. Addr.(h)</b> 分布：';
-      var rk = sortKeys(regMap);
-      if (rk.length === 0) distHtml += '无';
-      rk.forEach(function(k){ distHtml += ' <code>' + k + '</code> × ' + regMap[k] + '　'; });
-      if (badHex > 0) distHtml += '<br>（另有 ' + badHex + ' 行 Data 无法解析为 Hex，已忽略判定）';
-      document.getElementById('dist').innerHTML = distHtml;
-
-      filters = { addr:null, reg:null, data:null };
-      closePanel();
-      updateArrowState();
-
-      resultBox.style.display = 'block';
-      render('hits');
-    }
-
-    /* ---------- 文件读取入口：增强编码兼容 + 大小限制 ---------- */
-    function handleFile(file){
-      if (!file) return;
-      if (!/\.csv$/i.test(file.name)){
+      if (!/\.csv$/i.test(file.name)) {
         alert('请拖入 .csv 格式的文件。');
+        showMsg('文件扩展名不符合 .csv', true);
         return;
       }
-      // 限制文件大小（50MB）
       if (file.size > 50 * 1024 * 1024) {
-        alert('文件过大（超过 50MB），请压缩或拆分后重试。');
+        alert('文件过大（超过 50MB）');
+        showMsg('文件过大', true);
         return;
       }
-      var reader = new FileReader();
-      // 读取为 ArrayBuffer 以便手动解码
-      reader.readAsArrayBuffer(file);
-      reader.onload = function(e){
-        var buffer = e.target.result;
-        var uint8Array = new Uint8Array(buffer);
-        // 检测 BOM
-        var hasBOM = (uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array[2] === 0xBF);
-        var offset = hasBOM ? 3 : 0;
-        var dataView = uint8Array.slice(offset);
 
-        // 先尝试 UTF-8
-        var decoder = new TextDecoder('UTF-8', { fatal: false });
-        var text = decoder.decode(dataView);
-        // 如果出现替换字符 �，则回退到 GBK
-        if (text.includes('\uFFFD')) {
-          var gbkDecoder = new TextDecoder('GBK', { fatal: false });
-          text = gbkDecoder.decode(dataView);
+      var reader = new FileReader();
+      reader.readAsArrayBuffer(file);
+      console.log('⏳ 开始读取文件（ArrayBuffer）...');
+
+      reader.onload = function(e) {
+        console.log('✅ 文件读取成功，数据长度：', e.target.result.byteLength);
+        try {
+          var buffer = e.target.result;
+          var uint8Array = new Uint8Array(buffer);
+          // 检测 BOM
+          var hasBOM = (uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array[2] === 0xBF);
+          var offset = hasBOM ? 3 : 0;
+          console.log('🔍 BOM 检测：', hasBOM ? '有' : '无', '，偏移量：', offset);
+
+          var dataView = uint8Array.slice(offset);
+          // 尝试 UTF-8
+          var decoder = new TextDecoder('UTF-8', { fatal: false });
+          var text = decoder.decode(dataView);
+          console.log('📝 UTF-8 解码后长度：', text.length, '，是否包含替换字符 �：', text.includes('\uFFFD'));
+
+          if (text.includes('\uFFFD')) {
+            console.log('🔄 尝试 GBK 解码...');
+            var gbkDecoder = new TextDecoder('GBK', { fatal: false });
+            text = gbkDecoder.decode(dataView);
+            console.log('✅ GBK 解码完成，长度：', text.length);
+          }
+
+          // 调用主逻辑
+          console.log('🚀 调用 process 函数...');
+          processCSV(text, file.name);
+        } catch (err) {
+          console.error('❌ 解码或处理过程异常：', err);
+          alert('文件处理出错：' + err.message);
         }
-        // 调用主处理函数
-        process(text, file.name);
       };
-      reader.onerror = function(){
+
+      reader.onerror = function(e) {
+        console.error('❌ FileReader 错误：', e);
         alert('文件读取失败，请重试。');
       };
     }
 
-    /* ---------- 事件绑定：拖拽 + 点击选择 ---------- */
-    dropZone.addEventListener('click', function(){ fileInput.click(); });
-    fileInput.addEventListener('change', function(){ 
-      if (fileInput.files[0]) handleFile(fileInput.files[0]); 
-      fileInput.value = ''; 
+    // ---------- CSV 解析与业务逻辑（精简版，仅演示功能） ----------
+    function processCSV(text, fileName) {
+      console.log('📄 processCSV 被调用，文本长度：', text.length);
+      // 此处应包含您原有的 parseCSV、列定位、遍历、渲染等逻辑
+      // 为了快速验证，我们简化为弹窗显示前 100 个字符
+      alert('文件内容预览（前100字符）：\n' + text.substring(0, 100));
+      // 实际项目中这里放您原来的完整 process 函数
+      // 但为了排查，先这样测试
+    }
+
+    // ---------- 事件绑定 ----------
+    dropZone.addEventListener('click', function() {
+      console.log('🖱️ dropZone 被点击，触发 fileInput.click()');
+      fileInput.click();
     });
-    ['dragenter','dragover'].forEach(function(ev){
-      dropZone.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); dropZone.classList.add('dragover'); });
+
+    fileInput.addEventListener('change', function() {
+      console.log('📎 fileInput change 事件触发');
+      if (fileInput.files.length > 0) {
+        handleFile(fileInput.files[0]);
+      } else {
+        console.warn('没有选择文件');
+      }
+      fileInput.value = ''; // 重置
     });
-    ['dragleave','drop'].forEach(function(ev){
-      dropZone.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('dragover'); });
+
+    // 拖拽事件
+    ['dragenter', 'dragover'].forEach(function(ev) {
+      dropZone.addEventListener(ev, function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add('dragover');
+        console.log('🔄 拖拽进入/移动');
+      });
     });
-    dropZone.addEventListener('drop', function(e){
+
+    ['dragleave', 'drop'].forEach(function(ev) {
+      dropZone.addEventListener(ev, function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('dragover');
+        console.log('🔄 拖拽离开/放下');
+      });
+    });
+
+    dropZone.addEventListener('drop', function(e) {
       e.preventDefault();
       dropZone.classList.remove('dragover');
-      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      handleFile(f);
+      var files = e.dataTransfer && e.dataTransfer.files;
+      console.log('📂 drop 事件，files 对象：', files);
+      if (files && files.length > 0) {
+        handleFile(files[0]);
+      } else {
+        showMsg('拖拽未包含文件', true);
+      }
     });
 
-    /* ---------- 视图切换按钮 ---------- */
-    tabHits.addEventListener('click', function(){ render('hits'); });
-    tabAll.addEventListener('click', function(){ render('all'); });
-
-    /* ---------- 导出命中清单 ---------- */
-    btnExport.addEventListener('click', function(){
-      if (hits.length === 0){ alert('当前没有命中行可导出。'); return; }
-      var lines = ['\uFEFF行号,Reg. Addr.(h),Data(h),Bit(5)'];
-      hits.forEach(function(h){
-        lines.push(h.excelRow + ',' + h.reg + ',' + h.data + ',1');
-      });
-      var blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = curFile.replace(/\.csv$/i, '') + '_Bit5命中清单.csv';
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(a.href);
-    });
-
-  }); // DOMContentLoaded 结束
+    console.log('✅ 所有事件绑定完成，等待用户操作...');
+  });
 })();
 </script>
 </body>
