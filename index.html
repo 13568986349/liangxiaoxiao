@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>高通PMIC OCP检查工具</title>
 <style>
-  /* ================= 全局样式变量与基础样式 ================= */
+  /* ===== 原有样式保持不变，只新增一个错误提示区域 ===== */
   :root{ --accent:#2D5F8A; --accent-dark:#1C3A5E; --red:#D93025; --red-bg:#FDECEA;
          --gray:#6B7280; --border:#D9DEE4; }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -14,7 +14,6 @@
   h1{font-size:22px; color:var(--accent-dark); margin-bottom:6px;}
   .sub{color:var(--gray); font-size:13px; margin-bottom:20px; line-height:1.7;}
 
-  /* ================= 拖拽区样式 ================= */
   #dropZone{border:2px dashed var(--accent); border-radius:10px; background:#fff; padding:46px 20px;
             text-align:center; cursor:pointer; transition:all .15s;}
   #dropZone.dragover{background:#EAF2F9; border-color:var(--accent-dark); box-shadow:0 0 0 4px rgba(45,95,138,.12);}
@@ -22,7 +21,6 @@
   #dropZone .small{font-size:13px; color:var(--gray);}
   #fileInput{display:none;}
 
-  /* ================= 统计卡片样式 ================= */
   .cards{display:flex; gap:14px; margin:20px 0 6px; flex-wrap:wrap;}
   .card{flex:1; min-width:170px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 18px;}
   .card .num{font-size:26px; font-weight:700; color:var(--accent);}
@@ -30,7 +28,6 @@
   .card .lbl{font-size:12px; color:var(--gray); margin-top:4px;}
   .dist{margin:10px 0 0; font-size:13px; color:#374151; line-height:1.8;}
 
-  /* ================= 工具栏（视图切换/导出）样式 ================= */
   .toolbar{display:flex; gap:10px; align-items:center; margin:18px 0 10px; flex-wrap:wrap;}
   .btn{border:1px solid var(--accent); background:#fff; color:var(--accent); padding:7px 16px;
        border-radius:6px; font-size:13px; cursor:pointer; transition:all .15s;}
@@ -39,7 +36,6 @@
   .btn.export{border-color:#59A14F; color:#3D7A34; margin-left:auto;}
   .btn.export:hover{background:#EEF7EC;}
 
-  /* ================= 表头下拉筛选样式（多选模式） ================= */
   .th-wrap{display:flex; align-items:center; gap:6px;}
   .farrow{cursor:pointer; font-size:10px; padding:2px 5px; border-radius:4px; opacity:.75; user-select:none;}
   .farrow:hover{background:rgba(255,255,255,.22); opacity:1;}
@@ -58,7 +54,6 @@
   .filter-panel label.fp-item:hover{background:#F2F6FA;}
   .filter-panel .fp-count{color:var(--gray); font-size:12px; margin-left:auto; padding-left:12px;}
 
-  /* ================= 数据表格样式 ================= */
   .tablewrap{max-height:62vh; overflow:auto; border-radius:8px; border:1px solid var(--border); background:#fff;}
   table{width:100%; border-collapse:collapse; font-size:13px;}
   th{background:var(--accent); color:#fff; padding:9px 12px; text-align:left; font-weight:600;
@@ -69,14 +64,12 @@
   .b5{color:var(--red); font-weight:700; text-decoration:underline;}
   tr.hit .b5{color:#8B1A10;}
 
-  /* ================= 消息与页脚样式 ================= */
   #msg{margin-top:14px; font-size:13px; color:var(--gray); line-height:1.7;}
   #msg.err{color:var(--red); font-weight:600;}
   .footer{margin-top:26px; font-size:12px; color:#9AA3AF; text-align:center;}
   code{background:#EEF1F4; padding:1px 5px; border-radius:4px; font-size:12px;}
-  .loading-tip{text-align:center; padding:20px; color:var(--accent); font-weight:500;}
 
-  /* ================= 加载遮罩与进度条 ================= */
+  /* 加载遮罩 */
   #loading-overlay {
     display: none;
     position: fixed;
@@ -115,6 +108,28 @@
     0% { transform: translateX(-100%); }
     100% { transform: translateX(350%); }
   }
+
+  /* 新增：页面内错误/状态提示区域 */
+  #status-msg {
+    margin: 12px 0 0;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    display: none;
+    background: #FEF2F2;
+    border: 1px solid #FCA5A5;
+    color: #991B1B;
+  }
+  #status-msg.info {
+    background: #EFF6FF;
+    border-color: #93C5FD;
+    color: #1E40AF;
+  }
+  #status-msg.success {
+    background: #F0FDF4;
+    border-color: #86EFAC;
+    color: #166534;
+  }
 </style>
 </head>
 <body>
@@ -122,15 +137,18 @@
   <h1>高通PMIC OCP检查工具</h1>
   <div class="sub">
     功能：筛选 <code>Reg. Addr.(h)</code> 列中 <b>0X**08</b> 寄存器，判断 <b>Bit(5)</b> 是否为 1。
-
+    <br><span style="color:#D93025;">支持 URL 自动加载：在页面地址后加 ?file=你的文件.csv</span>
   </div>
 
-  <!-- 拖拽 / 点击选择文件区域 -->
+  <!-- 拖拽/点击区 -->
   <div id="dropZone">
-    <!-- <div class="big">将 SPMI.CSV 文件拖拽到此处</div> -->
-    <div class="big">点击此处选择文件（支持 .csv 文件格式）</div>
+    <div class="big">将 SPMI.CSV 文件拖拽到此处</div>
+    <div class="small">或点击此处选择文件（支持 .csv 文件格式）</div>
   </div>
   <input type="file" id="fileInput" accept=".csv,text/csv">
+
+  <!-- 状态提示（用于显示加载错误或信息） -->
+  <div id="status-msg"></div>
 
   <!-- 加载遮罩 -->
   <div id="loading-overlay">
@@ -138,7 +156,7 @@
     <div class="progress-bar"><div class="bar"></div></div>
   </div>
 
-  <!-- 结果展示区域 -->
+  <!-- 结果区域 -->
   <div id="result" style="display:none">
     <div class="cards">
       <div class="card"><div class="num" id="numTotal">0</div><div class="lbl">数据总行数</div></div>
@@ -156,9 +174,9 @@
         <thead>
           <tr>
             <th style="width:90px">行号</th>
-            <th style="width:150px"><div class="th-wrap">Addr.(h)<span class="farrow" data-col="addr" title="下拉筛选（多选）">&#9660;</span></div></th>
-            <th style="width:190px"><div class="th-wrap">Reg. Addr.(h)<span class="farrow" data-col="reg" title="下拉筛选（多选）">&#9660;</span></div></th>
-            <th style="width:170px"><div class="th-wrap">Data(h)<span class="farrow" data-col="data" title="下拉筛选（多选）">&#9660;</span></div></th>
+            <th style="width:150px"><div class="th-wrap">Addr.(h)<span class="farrow" data-col="addr">&#9660;</span></div></th>
+            <th style="width:190px"><div class="th-wrap">Reg. Addr.(h)<span class="farrow" data-col="reg">&#9660;</span></div></th>
+            <th style="width:170px"><div class="th-wrap">Data(h)<span class="farrow" data-col="data">&#9660;</span></div></th>
             <th>低字节二进制（b7~b0）</th>
           </tr>
         </thead>
@@ -172,12 +190,8 @@
 </div>
 
 <script>
-/* =====================================================================
- * 增强版：支持 URL 参数 ?file=xxx.csv 自动加载 + 加载进度指示器
- * 修复拖拽事件，确保拖拽上传可用
- * ===================================================================== */
 (function(){
-  /* ---------- 页面元素引用 ---------- */
+  /* ---------- DOM 引用 ---------- */
   var dropZone  = document.getElementById('dropZone');
   var fileInput = document.getElementById('fileInput');
   var resultBox = document.getElementById('result');
@@ -188,8 +202,9 @@
   var btnExport = document.getElementById('btnExport');
   var arrows    = document.querySelectorAll('.farrow');
   var loadingOverlay = document.getElementById('loading-overlay');
+  var statusMsg = document.getElementById('status-msg');  // 新增状态显示区
 
-  /* ---------- 全局数据 ---------- */
+  /* ---------- 全局变量 ---------- */
   var all08 = [];
   var hits = [];
   var curFile = '';
@@ -350,7 +365,7 @@
   window.addEventListener('scroll', closePanel);
   window.addEventListener('resize', closePanel);
 
-  /* ---------- 核心渲染 ---------- */
+  /* ---------- 渲染 ---------- */
   function render(tab){
     curTab = tab;
     var list = (tab === 'all') ? all08 : hits;
@@ -376,14 +391,17 @@
           + '。行号为 CSV/Excel 中的实际行号。', false);
   }
 
-  /* ---------- 核心处理流程 ---------- */
+  /* ---------- 解析核心 ---------- */
   function process(text, fileName){
     loadingOverlay.style.display = 'flex';
     setTimeout(function(){
       try {
         _doProcess(text, fileName);
+        // 成功时清除状态信息
+        statusMsg.style.display = 'none';
       } catch (e) {
         console.error('解析异常:', e);
+        showStatus('解析失败：' + e.message, 'error');
         alert('解析文件时发生异常：' + e.message);
       } finally {
         loadingOverlay.style.display = 'none';
@@ -404,6 +422,7 @@
       if (ri >= 0 && di >= 0){ headerIdx = r; addrCol = ai; regCol = ri; dataCol = di; break; }
     }
     if (headerIdx < 0){
+      showStatus('未在文件中找到 "Reg. Addr.(h)" 与 "Data(h)" 列，请检查 CSV 格式。', 'error');
       alert('未在文件中找到 "Reg. Addr.(h)" 与 "Data(h)" 列，请检查 CSV 格式。');
       return;
     }
@@ -467,20 +486,35 @@
     render('hits');
   }
 
-  /* ---------- 文件读取入口 ---------- */
+  /* ---------- 状态信息显示（新增） ---------- */
+  function showStatus(text, type){
+    statusMsg.textContent = text;
+    statusMsg.className = type || '';
+    statusMsg.style.display = 'block';
+  }
+
+  /* ---------- 文件读取 ---------- */
   function handleFile(file){
     if (!file) {
       console.warn('handleFile 收到空文件');
       return;
     }
     if (!/\.csv$/i.test(file.name)){
-      alert('请拖入 .csv 格式的文件。');
+      showStatus('请选择 .csv 格式的文件。', 'error');
+      alert('请选择 .csv 格式的文件。');
       return;
     }
     console.log('开始读取文件:', file.name);
+    showStatus('正在读取 ' + file.name + ' ...', 'info');
     var reader = new FileReader();
-    reader.onload = function(e){ process(e.target.result, file.name); };
-    reader.onerror = function(){ alert('文件读取失败，请重试。'); };
+    reader.onload = function(e){ 
+      showStatus('正在解析 ' + file.name + ' ...', 'info');
+      process(e.target.result, file.name); 
+    };
+    reader.onerror = function(){ 
+      showStatus('文件读取失败，请重试。', 'error');
+      alert('文件读取失败，请重试。'); 
+    };
     reader.readAsText(file, 'UTF-8');
   }
 
@@ -489,51 +523,58 @@
     var params = new URLSearchParams(window.location.search);
     var fileParam = params.get('file');
     if (!fileParam) return false;
+
+    // 显示加载中状态
+    showStatus('正在从服务器加载 ' + fileParam + ' ...', 'info');
     loadingOverlay.style.display = 'flex';
-    fetch(fileParam)
+
+    fetch(fileParam, { mode: 'same-origin' })  // 明确同源请求
       .then(function(res){
-        if (!res.ok) throw new Error('HTTP ' + res.status + ' 文件未找到或无法读取');
+        if (!res.ok) throw new Error('HTTP ' + res.status + ' - ' + res.statusText);
         return res.text();
       })
       .then(function(text){
+        // 隐藏状态（process 内部会显示解析状态）
         process(text, fileParam.split('/').pop() || fileParam);
       })
       .catch(function(err){
         loadingOverlay.style.display = 'none';
-        alert('自动加载失败：' + err.message + '\n\n请检查文件路径是否正确，或改用拖拽上传。');
+        var msg = '自动加载失败：' + err.message + '\n\n';
+        msg += '请检查：\n';
+        msg += '1. 文件路径是否正确（注意大小写）\n';
+        msg += '2. 文件是否与页面在同一个仓库目录下\n';
+        msg += '3. 如果文件在子目录，请使用相对路径，如 ?file=subdir/test.csv\n';
+        msg += '4. 如果使用 GitHub Raw 链接，可能跨域被阻止，请改用拖拽上传。';
+        showStatus(msg, 'error');
+        alert(msg);
         console.error('Fetch error:', err);
       });
     return true;
   }
 
   /* ---------- 事件绑定 ---------- */
-  // 点击选择文件
   dropZone.addEventListener('click', function(){ fileInput.click(); });
   fileInput.addEventListener('change', function(){ 
     if (fileInput.files.length > 0) handleFile(fileInput.files[0]); 
     fileInput.value = ''; 
   });
 
-  // 拖拽事件 —— 修复关键点
+  // 拖拽事件（已在之前版本修复）
   dropZone.addEventListener('dragenter', function(e){
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dropZone.classList.add('dragover');
   });
   dropZone.addEventListener('dragover', function(e){
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     e.dataTransfer.dropEffect = 'copy';
     dropZone.classList.add('dragover');
   });
   dropZone.addEventListener('dragleave', function(e){
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dropZone.classList.remove('dragover');
   });
   dropZone.addEventListener('drop', function(e){
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dropZone.classList.remove('dragover');
     var files = e.dataTransfer.files;
     console.log('拖拽文件数:', files.length);
@@ -543,14 +584,13 @@
       handleFile(f);
     } else {
       console.warn('没有文件被拖入');
+      showStatus('没有检测到文件，请重新拖拽。', 'error');
     }
   });
 
-  // 视图切换
   tabHits.addEventListener('click', function(){ render('hits'); });
   tabAll.addEventListener('click', function(){ render('all'); });
 
-  // 导出
   btnExport.addEventListener('click', function(){
     if (hits.length === 0){ alert('当前没有命中行可导出。'); return; }
     var lines = ['\uFEFF行号,Reg. Addr.(h),Data(h),Bit(5)'];
@@ -568,7 +608,7 @@
   /* ---------- 启动 ---------- */
   var loaded = loadFromURL();
   if (!loaded) {
-    showMsg('请拖入 CSV 文件，或点击上方区域选择。', false);
+    showStatus('请拖入 CSV 文件，或点击上方区域选择。', 'info');
   }
 })();
 </script>
