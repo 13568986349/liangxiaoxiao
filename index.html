@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>高通PMIC OCP检查工具</title>
 <style>
-  /* ================= 全局样式 ================= */
+  /* ================= 全局样式（与之前相同，为节约篇幅此处省略，请使用原有样式） ================= */
   :root{ --accent:#2D5F8A; --accent-dark:#1C3A5E; --red:#D93025; --red-bg:#FDECEA;
          --gray:#6B7280; --border:#D9DEE4; }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -68,9 +68,7 @@
   #msg.err{color:var(--red); font-weight:600;}
   .footer{margin-top:26px; font-size:12px; color:#9AA3AF; text-align:center;}
   code{background:#EEF1F4; padding:1px 5px; border-radius:4px; font-size:12px;}
-
-  /* 调试日志区域（仅用于显示，不影响功能） */
-  #log{background:#1e1e1e; color:#d4d4d4; padding:10px; border-radius:6px; max-height:200px; overflow:auto; font-family:monospace; font-size:12px; white-space:pre-wrap; margin-top:20px; display:none;}
+  #log{background:#1e1e1e; color:#d4d4d4; padding:10px; border-radius:6px; max-height:200px; overflow:auto; font-family:monospace; font-size:12px; white-space:pre-wrap; margin-top:20px; display:block;}
 </style>
 </head>
 <body>
@@ -118,17 +116,16 @@
   </div>
 
   <div class="footer">纯前端处理 · 数据不离开本机 · 关闭页面后自动清空</div>
-  <div id="log"></div> <!-- 调试日志容器，默认隐藏 -->
+  <div id="log"></div>
 </div>
 
 <script>
 (function(){
-  // ---------- 安全日志函数（先输出到控制台，再尝试写到页面） ----------
+  // 安全日志函数
   function log(msg, type) {
     var prefix = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '✅';
     var full = '[' + new Date().toLocaleTimeString() + '] ' + prefix + ' ' + msg;
     console.log(full);
-    // 尝试写入页面日志区域（如果存在）
     try {
       var logEl = document.getElementById('log');
       if (logEl) {
@@ -136,10 +133,9 @@
         logEl.textContent += full + '\n';
         logEl.scrollTop = logEl.scrollHeight;
       }
-    } catch(e) { /* 忽略 */ }
+    } catch(e) { /* ignore */ }
   }
 
-  // ---------- 等待 DOM 加载 ----------
   document.addEventListener('DOMContentLoaded', function() {
     log('DOM 加载完成，开始初始化...');
 
@@ -153,7 +149,6 @@
     var btnExport = document.getElementById('btnExport');
     var arrows = document.querySelectorAll('.farrow');
 
-    // 检查关键元素
     if (!dropZone || !fileInput || !resultBox || !tbody || !msgBox) {
       log('关键元素缺失，无法启动', 'error');
       return;
@@ -356,7 +351,6 @@
         var rows = parseCSV(text);
         log('解析行数：' + rows.length);
 
-        // 定位表头
         var headerIdx = -1, addrCol = -1, regCol = -1, dataCol = -1;
         for (var r = 0; r < Math.min(rows.length, 20); r++) {
           var norm = rows[r].map(function(c) { return cleanCell(c).toLowerCase().replace(/\s+/g, ''); });
@@ -399,12 +393,10 @@
         }
         log('数据总行：' + totalData + '，**08 行：' + all08.length + '，命中行：' + hits.length);
 
-        // 更新统计卡片
         document.getElementById('numTotal').textContent  = totalData;
         document.getElementById('numAddr08').textContent = all08.length;
         document.getElementById('numHit').textContent    = hits.length;
 
-        // 分布统计
         var addrMap = {}, regMap = {};
         hits.forEach(function(h) {
           var ka = (h.addr || '(空)').toUpperCase();
@@ -427,7 +419,6 @@
         if (badHex > 0) distHtml += '<br>（另有 ' + badHex + ' 行 Data 无法解析为 Hex，已忽略判定）';
         document.getElementById('dist').innerHTML = distHtml;
 
-        // 重置筛选
         filters = { addr:null, reg:null, data:null };
         closePanel();
         updateArrowState();
@@ -442,7 +433,7 @@
       }
     }
 
-    // ---------- 文件读取入口（增强编码兼容） ----------
+    // ---------- 文件读取入口 ----------
     function handleFile(file) {
       log('handleFile 被调用，文件名：' + file.name + '，大小：' + file.size);
       if (!/\.csv$/i.test(file.name)) {
@@ -470,7 +461,6 @@
           log('BOM检测：' + (hasBOM ? '有' : '无') + '，偏移量：' + offset);
 
           var dataView = uint8Array.slice(offset);
-          // 尝试 UTF-8
           var decoder = new TextDecoder('UTF-8', { fatal: false });
           var text = decoder.decode(dataView);
           log('UTF-8解码后长度：' + text.length + '，包含替换字符 �：' + text.includes('\uFFFD'));
@@ -497,23 +487,38 @@
     }
 
     // ---------- 事件绑定 ----------
+    // 点击选择：使用轮询检测文件变化（解决 change 事件不触发的问题）
     dropZone.addEventListener('click', function() {
       log('dropZone 被点击，触发 fileInput.click()');
       fileInput.click();
+
+      // 启动轮询，检查 files 是否更新
+      var pollTimer = setInterval(function() {
+        if (fileInput.files.length > 0) {
+          log('轮询检测到文件选择：' + fileInput.files[0].name);
+          clearInterval(pollTimer);
+          clearTimeout(timeoutTimer);
+          handleFile(fileInput.files[0]);
+          fileInput.value = ''; // 重置
+        }
+      }, 300);
+
+      var timeoutTimer = setTimeout(function() {
+        clearInterval(pollTimer);
+        log('文件选择超时（可能取消）', 'warn');
+      }, 10000);
     });
 
+    // 保留 change 事件（作为备选，即使不触发也无妨）
     fileInput.addEventListener('change', function() {
-      log('fileInput change 事件触发！');
-      var files = fileInput.files;
-      if (files.length > 0) {
-        log('选择了文件：' + files[0].name);
-        handleFile(files[0]);
-      } else {
-        log('未选择任何文件（可能取消了选择）', 'warn');
+      log('change 事件触发（备选）');
+      if (fileInput.files.length > 0) {
+        handleFile(fileInput.files[0]);
+        fileInput.value = '';
       }
-      fileInput.value = ''; // 重置
     });
 
+    // 拖拽事件
     ['dragenter', 'dragover'].forEach(function(ev) {
       dropZone.addEventListener(ev, function(e) {
         e.preventDefault();
